@@ -5,7 +5,7 @@ Each phase is committed separately. A phase is complete only when its acceptance
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 0 | Repository assessment, architecture, folder structure, env template, data contracts, test strategy, ordered plan | Complete |
-| 1 | React/Vite app, FastAPI, MongoDB, auth, onboarding, company profile, uploads, English/Hindi, responsive dashboard | In progress |
+| 1 | React/Vite app, FastAPI, MongoDB, auth, onboarding, company profile, uploads, English/Hindi, responsive dashboard | Complete |
 | 2 | Real TinyFish discovery and retrieval, tender ingestion, document collection, deduplication | Not started |
 | 3 | PDF extraction, structured requirements, citations, validation, processing status | Not started |
 | 4 | Deterministic suitability score, eligibility, evidence matching, checklist, legal clauses | Not started |
@@ -31,6 +31,8 @@ Each phase is committed separately. A phase is complete only when its acceptance
 - Dashboard metrics derive from stored records; empty states are honest.
 - Backend tests cover auth, tenant isolation, profile updates and file access.
 - Frontend builds and its navigation/auth flow tests pass.
+
+Phase 1 verification on 2026-10-20: backend `pytest` 14 passed; frontend `npm run build` succeeded; frontend `npm test` 4 passed; manual browser run of register -> onboarding -> dashboard -> upload/download -> company profile -> settings covered English/Hindi and light/dark with real MongoDB persistence.
 
 ## Later-phase guardrails
 

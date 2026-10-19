@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-mist text-navy-900 dark:bg-navy-950 dark:text-navy-50;
+    font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-teal-500 ring-offset-2 ring-offset-white dark:ring-offset-navy-950;
+  }
+
+  ::selection {
+    @apply bg-teal-200 text-navy-900;
+  }
+}
+
+@layer components {
+  .surface {
+    @apply rounded-2xl border border-navy-100 bg-white shadow-card dark:border-navy-800 dark:bg-navy-900;
+  }
+
+  .muted {
+    @apply text-navy-500 dark:text-navy-300;
+  }
+
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.14em] text-teal-700 dark:text-teal-300;
+  }
+
+  .table-scroll {
+    scrollbar-width: thin;
+  }
+}
+
+/* Slim, unobtrusive scrollbars for dense workspace panels. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(110, 141, 187, 0.35) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(110, 141, 187, 0.35);
+  border-radius: 999px;
+}

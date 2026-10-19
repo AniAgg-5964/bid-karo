@@ -7,8 +7,17 @@ The defining principle is simple: every tender-specific claim must be traceable 
 ## Current status
 
 - **Phase 0 — architecture and repository foundation:** complete.
-- **Phase 1 — functional foundation:** in progress.
+- **Phase 1 — functional foundation:** complete. Register/login, company onboarding, company profile, private document library, dashboard, English/Hindi and light/dark, tenant-isolated APIs.
 - Later phases are tracked in [`docs/PHASES.md`](docs/PHASES.md).
+
+### What works now
+
+- Real email/password auth (bcrypt + JWT); every company-scoped request is filtered by the authenticated company.
+- 4-step onboarding and an editable company profile (details, capabilities, tender preferences, completeness score).
+- Private evidence document library: upload (PDF/PNG/JPG, local storage), list/search/filter, download and delete.
+- Dashboard metrics, priority actions, deadlines and recent activity derived from stored records only.
+- Honest placeholders for later phases: discovery and assessment pages state that they are not enabled yet instead of showing fake results.
+- English/Hindi and light/dark switches persist per user.
 
 The repository started empty. The product specification is `BidPilot_AI_Project_Workflow_and_Execution_Plan.docx` (kept outside the repository by the project owner). The UI direction follows the supplied BidKaro mockup screenshots.
 
@@ -55,6 +64,8 @@ With `mongod` installed:
 ```
 
 The helper stores data in `.data/mongo` (git-ignored) and listens on `localhost:27017`.
+
+**Local vs shared MongoDB:** the app always talks to the MongoDB server in `MONGODB_URI`, so all users of a running backend share the same database. Local `mongod` is the zero-cost development/demo server. For a hosted deployment or team access, use MongoDB Atlas or another shared MongoDB and set `MONGODB_URI` in `.env`; no application code changes are required. Never commit that URI because it contains credentials.
 
 ### 3. Backend
 
