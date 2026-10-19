@@ -23,6 +23,7 @@ ACTIVITY_LABELS = {
     "document.deleted": "Evidence document removed",
     "tender.saved": "Tender saved",
     "checklist.updated": "Checklist task updated",
+    "discovery.run": "Tender discovery run completed",
 }
 
 
@@ -41,13 +42,16 @@ class DashboardService:
 
         active_bids = self.tenders.count_active(company_id)
         open_tasks = self.tasks.count_open(company_id)
-        deadlines = self.tasks.count_upcoming(company_id, now, horizon)
+        task_deadlines = self.tasks.count_upcoming(company_id, now, horizon)
+        tender_deadlines = self.tenders.count_upcoming(company_id, now, horizon)
+        deadlines = task_deadlines + tender_deadlines
         document_count = self.documents.count_for_company(company_id)
         pending_changes = self.changes.count_pending(company_id)
         completeness = calculate_profile_completeness(company)
 
         tenders, _ = self.tenders.list_for_company(company_id, limit=5)
         due_tasks = self.tasks.upcoming_for_company(company_id, now, horizon, limit=5)
+        due_tenders = self.tenders.upcoming_for_company(company_id, now, horizon, limit=5)
         activity = self.audit.recent_for_company(company_id, limit=6)
 
         actions: list[PriorityAction] = []
@@ -76,7 +80,7 @@ class DashboardService:
                 PriorityAction(
                     key="discover_tender",
                     title="Discover your first tender",
-                    description="Search an official source once TinyFish discovery is configured.",
+                    description="Search the live web for tenders that match your profile.",
                     href="/app/discover",
                     tone="info",
                 )
@@ -86,8 +90,10 @@ class DashboardService:
                 PriorityAction(
                     key="deadlines",
                     title=f"{deadlines} deadline{'s' if deadlines != 1 else ''} in the next 14 days",
-                    description="Review tasks and confirm the evidence needed for submission.",
-                    href="/app/checklist",
+                    description="Review submission dates and confirm the evidence needed.",
+                    href="/app/tenders"
+                    if tender_deadlines and not task_deadlines
+                    else "/app/checklist",
                     tone="danger",
                 )
             )
@@ -117,19 +123,40 @@ class DashboardService:
             priority_actions=actions[:4],
             recent_tenders=[self.to_tender_card(item) for item in tenders],
             recent_activity=[self._activity(item) for item in activity],
-            upcoming_deadlines=[
+            upcoming_deadlines=self._upcoming_deadlines(due_tenders, due_tasks),
+        )
+
+    @staticmethod
+    def _upcoming_deadlines(due_tenders: list[dict], due_tasks: list[dict]) -> list[DeadlineItem]:
+        items: list[DeadlineItem] = []
+        for tender in due_tenders:
+            if not tender.get("deadline"):
+                continue
+            items.append(
                 DeadlineItem(
-                    id=item["id"],
-                    title=item.get("title") or "Checklist task",
-                    due_at=item["due_at"],
-                    status=item.get("status", "missing"),
-                    href=f"/app/tenders/{item.get('tender_id')}?tab=tasks"
-                    if item.get("tender_id")
+                    id=tender["id"],
+                    title=tender.get("title") or "Tender deadline",
+                    due_at=tender["deadline"],
+                    status=tender.get("status", "saved"),
+                    href=f"/app/tenders/{tender['id']}",
+                )
+            )
+        for task in due_tasks:
+            if not task.get("due_at"):
+                continue
+            items.append(
+                DeadlineItem(
+                    id=task["id"],
+                    title=task.get("title") or "Checklist task",
+                    due_at=task["due_at"],
+                    status=task.get("status", "missing"),
+                    href=f"/app/tenders/{task.get('tender_id')}?tab=tasks"
+                    if task.get("tender_id")
                     else "/app/checklist",
                 )
-                for item in due_tasks
-            ],
-        )
+            )
+        items.sort(key=lambda item: item.due_at)
+        return items[:5]
 
     def to_tender_card(self, item: dict) -> TenderCard:
         return TenderCard(

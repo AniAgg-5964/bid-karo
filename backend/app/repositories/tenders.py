@@ -1,12 +1,30 @@
 from __future__ import annotations
 
-from app.core.database import Database
+from uuid import uuid4
+
+from app.core.database import Database, utcnow
 from app.repositories.base import with_id
 
 
 class TenderRepository:
     def __init__(self, db: Database) -> None:
         self.collection = db.tenders
+
+    def create(self, values: dict) -> dict:
+        now = utcnow()
+        document = {
+            "_id": uuid4().hex,
+            "created_at": now,
+            "updated_at": now,
+            **values,
+        }
+        self.collection.insert_one(document)
+        return with_id(document)
+
+    def find_by_discovered(self, discovered_id: str, company_id: str) -> dict | None:
+        return with_id(
+            self.collection.find_one({"company_id": company_id, "discovered_tender_id": discovered_id})
+        )
 
     def list_for_company(self, company_id: str, limit: int = 10, offset: int = 0) -> tuple[list[dict], int]:
         query = {"company_id": company_id}
@@ -26,6 +44,29 @@ class TenderRepository:
         return self.collection.count_documents(
             {"company_id": company_id, "status": {"$in": ["saved", "preparing", "submitted"]}}
         )
+
+    def count_upcoming(self, company_id: str, start, end) -> int:
+        return self.collection.count_documents(
+            {
+                "company_id": company_id,
+                "status": {"$in": ["saved", "preparing", "submitted"]},
+                "deadline": {"$gte": start, "$lte": end},
+            }
+        )
+
+    def upcoming_for_company(self, company_id: str, start, end, limit: int = 5) -> list[dict]:
+        cursor = (
+            self.collection.find(
+                {
+                    "company_id": company_id,
+                    "status": {"$in": ["saved", "preparing", "submitted"]},
+                    "deadline": {"$gte": start, "$lte": end},
+                }
+            )
+            .sort("deadline", 1)
+            .limit(max(limit, 1))
+        )
+        return [with_id(item) for item in cursor]
 
 
 class ChecklistRepository:

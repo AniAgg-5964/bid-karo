@@ -52,6 +52,14 @@ class Database:
     def audit_logs(self):
         return self.db["audit_logs"]
 
+    @property
+    def discovered_tenders(self):
+        return self.db["discovered_tenders"]
+
+    @property
+    def discovery_runs(self):
+        return self.db["discovery_runs"]
+
     def ping(self) -> bool:
         self.client.admin.command("ping")
         return True
@@ -91,6 +99,24 @@ class Database:
         self.changes.create_index(
             [("company_id", ASCENDING), ("detected_at", DESCENDING)],
             name="ix_changes_company_detected",
+        )
+
+        self.discovered_tenders.create_index(
+            [("company_id", ASCENDING), ("dedupe_key", ASCENDING)],
+            unique=True,
+            name="uq_discovered_company_dedupe",
+        )
+        self.discovered_tenders.create_index(
+            [("company_id", ASCENDING), ("relevance.score", DESCENDING)],
+            name="ix_discovered_company_score",
+        )
+        self.discovered_tenders.create_index(
+            [("company_id", ASCENDING), ("last_seen_at", DESCENDING)],
+            name="ix_discovered_company_seen",
+        )
+        self.discovery_runs.create_index(
+            [("company_id", ASCENDING), ("started_at", DESCENDING)],
+            name="ix_runs_company_started",
         )
 
     def close(self) -> None:

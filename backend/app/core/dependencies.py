@@ -8,8 +8,10 @@ from fastapi.security import OAuth2PasswordBearer
 from app.core.config import get_settings
 from app.core.database import Database, get_database
 from app.core.security import TokenError, decode_access_token
+from app.integrations.tinyfish import TinyFishClient
 from app.repositories.users import UserRepository
 from app.repositories.companies import CompanyRepository
+from app.services.discovery_service import DiscoveryService
 from app.services.storage import StorageService
 
 settings = get_settings()
@@ -20,6 +22,17 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_prefix}/auth/login
 def get_storage() -> StorageService:
     current = get_settings()
     return StorageService(current.storage_dir, current.max_upload_mb)
+
+
+def get_discovery_client() -> TinyFishClient:
+    return TinyFishClient.from_settings()
+
+
+def get_discovery_service(
+    db: Database = Depends(get_database),
+    client: TinyFishClient = Depends(get_discovery_client),
+) -> DiscoveryService:
+    return DiscoveryService(db, client=client)
 
 
 def get_current_user(

@@ -23,3 +23,13 @@ class ForbiddenError(AppError):
 class ValidationError(AppError):
     def __init__(self, detail: str) -> None:
         super().__init__(422, detail)
+
+
+class NotConfiguredError(AppError):
+    def __init__(self, detail: str = "Integration is not configured.") -> None:
+        super().__init__(503, detail)
+
+
+class UpstreamError(AppError):
+    def __init__(self, detail: str = "Upstream service failed.") -> None:
+        super().__init__(502, detail)

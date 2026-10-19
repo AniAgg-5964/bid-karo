@@ -39,7 +39,13 @@ class Settings(BaseSettings):
     gemini_model: str = ""
     groq_api_key: str = ""
     groq_model: str = ""
+    groq_base_url: str = "https://api.groq.com/openai/v1"
     ai_request_timeout_seconds: int = 60
+
+    discovery_max_candidates: int = 20
+    discovery_fetch_limit: int = 12
+    discovery_min_score: float = 0.3
+    discovery_cache_hours: int = 24
 
     @field_validator("api_prefix")
     @classmethod
