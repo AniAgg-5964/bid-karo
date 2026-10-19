@@ -34,6 +34,8 @@ Each phase is committed separately. A phase is complete only when its acceptance
 
 Phase 1 verification on 2026-10-20: backend `pytest` 14 passed; frontend `npm run build` succeeded; frontend `npm test` 4 passed; manual browser run of register -> onboarding -> dashboard -> upload/download -> company profile -> settings covered English/Hindi and light/dark with real MongoDB persistence.
 
+Dependency hardening (2026-10-20, after Phase 1): `react-router-dom` 6 -> 7, `vite` 8, `vitest` 5; `npm audit --omit=dev` now reports 0 vulnerabilities. Tailwind 3 -> 4 migration deferred deliberately; see [`DEPENDENCIES.md`](DEPENDENCIES.md).
+
 ## Later-phase guardrails
 
 - Phase 2 is not complete with mocked TinyFish responses.

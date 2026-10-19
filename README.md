@@ -118,3 +118,4 @@ npm test
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md)
 - [`docs/PHASES.md`](docs/PHASES.md)
+- [`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md)
