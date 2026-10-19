@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+coverage/
+*.local
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Uploaded files and local databases
+storage/
+.data/
+backend/storage/
+backend/.data/
+
+# Logs and OS files
+*.log
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Test artifacts
+test-results/
+playwright-report/
