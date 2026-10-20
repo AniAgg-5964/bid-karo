@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -8,7 +9,10 @@ from fastapi.responses import JSONResponse
 
 from app.api.router import api_router
 from app.core.config import get_settings
+from app.core.database import get_database
 from app.core.exceptions import AppError
+
+logger = logging.getLogger("bidkaro")
 
 
 @asynccontextmanager
@@ -17,6 +21,19 @@ async def lifespan(app: FastAPI):
     if settings.is_production and settings.jwt_secret.startswith("dev-only"):
         raise RuntimeError("JWT_SECRET must be configured before running in production.")
     settings.storage_dir.mkdir(parents=True, exist_ok=True)
+
+    # Fail fast with a message that never contains connection credentials.
+    database_provider = app.dependency_overrides.get(get_database, get_database)
+    try:
+        database = database_provider()
+        database.ping()
+    except Exception as exc:  # pragma: no cover - exercised by deployment failure
+        raise RuntimeError(
+            "MongoDB is unreachable for database "
+            f"'{settings.mongodb_db}'. Check MONGODB_URI, the Atlas IP allowlist, "
+            f"and the database user's password/permissions ({type(exc).__name__})."
+        ) from exc
+    logger.info("MongoDB connected: %s", database.describe_target())
     yield
 
 

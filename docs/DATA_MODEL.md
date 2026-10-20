@@ -69,15 +69,85 @@ Indexes: `(company_id, created_at)`, `(company_id, document_type)`, `(company_id
 
 Indexes: `(company_id, created_at)`, `entity_type + entity_id`.
 
-## Planned Phase 2-5 collections
+## Phase 2 collections
 
-The product specification defines these entities. They will be implemented with explicit validation and indexes as each phase lands.
+### `discovered_tenders`
+
+Company-scoped candidates from TinyFish discovery. Key fields: `dedupe_key`, `title`, `url`, `source_type` (`official`/`aggregator`), `extracted` (title, authority, reference, deadline, excerpts), `relevance` (score and reasons), `listing` (portal/index flags), `status` (`new`/`saved`/`dismissed`), `first_seen_at`, `last_seen_at`. Deduplicated per company by `dedupe_key`.
+
+Indexes: `(company_id, dedupe_key)` unique, `(company_id, status)`, `(company_id, relevance.score)`.
+
+### `discovery_runs`
+
+One record per run: company, profile snapshot, queries, counts/funnel, timestamps. Indexed by `(company_id, started_at)`.
+
+### `tenders`
+
+Saved workspace tenders: `company_id`, `title`, `authority`, `reference_number`, `deadline` (UTC; date-only values anchored at 12:00 UTC), `status` (`saved`/`preparing`/`submitted`/`won`/`lost`/`archived`), `source_url`, `source_type`, `source_retrieved_at`, `description`, `discovered_tender_id`, optional `is_sample` for clearly labelled synthetic fixtures, `created_at`, `updated_at`.
+
+Indexes: `(company_id, created_at)`, `(company_id, deadline)`.
+
+## Phase 3 collections
+
+### `tender_documents`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `_id` | string | UUID |
+| `company_id`, `tender_id` | string | tenant + tender scope |
+| `kind` | string | `main`, `corrigendum`, `boq`, `form`, `other` |
+| `title`, `original_filename`, `stored_filename` | string | bytes stored outside MongoDB |
+| `mime_type`, `size_bytes`, `sha256` | | integrity; SHA-256 dedupes per tender |
+| `source` | string | `uploaded` or `downloaded` |
+| `source_url` | string? | final URL for downloads |
+| `retrieved_at` | datetime | upload or download time |
+| `status` | string | `extracted`, `no_text_layer`, `failed` |
+| `page_count`, `text_page_count`, `truncated` | | extraction outcome |
+| `error` | string? | e.g. password-protected or corrupt PDF |
+| `created_at`, `updated_at` | datetime | |
+
+Indexes: `(company_id, tender_id, created_at)`, unique `(company_id, tender_id, sha256)`.
+
+### `tender_pages`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `_id` | string | UUID |
+| `company_id`, `tender_id`, `document_id` | string | scope |
+| `page_index` | int | 1-based viewer page |
+| `printed_label` | string | PDF label from PyMuPDF |
+| `text` | string | extracted text |
+| `char_count` | int | |
+| `has_text` | bool | false for image-only pages |
+
+Indexes: unique `(document_id, page_index)`, `(company_id, tender_id)`.
+
+### `requirements`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `_id` | string | UUID |
+| `company_id`, `tender_id`, `document_id` | string | scope |
+| `category` | string | eligibility, technical, financial, compliance, submission, performance, other |
+| `title`, `obligation` | string | obligation is labelled interpretation |
+| `excerpt` | string | verbatim model quote |
+| `excerpt_key` | string | normalized quote for dedupe |
+| `page_index`, `printed_page` | | citation |
+| `clause_reference`, `form_reference` | string? | only when sourced |
+| `mandatory` | string | `yes`, `no`, `unknown` |
+| `deadline_text`, `consequence_text` | string? | only when sourced |
+| `verification_status` | string | `verified`, `unverified`, `needs_review`, `rejected` |
+| `verification_notes` | string? | rejection reason or reviewer note |
+| `source_url` | string? | copied from the document when present |
+| `origin`, `model`, `prompt_version` | string | provenance |
+| `created_at`, `updated_at` | datetime | |
+
+Indexes: `(company_id, tender_id, page_index)`, `(company_id, document_id)`, `(company_id, verification_status)`.
+
+## Planned Phase 4-5 collections
 
 | Collection | Purpose |
 | --- | --- |
-| `tenders` | tender metadata, source URL, retrieval time, status, current version |
-| `tender_documents` | collected files, document type, URL, version, collection status |
-| `requirements` | cited tender requirements, applicability, verification state |
 | `evidence_matches` | requirement-to-company-document matches and gaps |
 | `fit_assessments` | deterministic score, dimension breakdown, coverage, eligibility results |
 | `checklist_tasks` | tender-specific actions, owners, statuses, deadlines, citations |

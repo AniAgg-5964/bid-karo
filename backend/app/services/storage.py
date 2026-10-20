@@ -14,6 +14,7 @@ ALLOWED_TYPES = {
 }
 
 STORED_NAME_RE = re.compile(r"^[a-f0-9]{32}\.(pdf|png|jpg|jpeg)$")
+TENDER_ID_RE = re.compile(r"^[a-f0-9]{32}$")
 
 
 def sanitize_original_filename(filename: str | None) -> str:
@@ -76,6 +77,39 @@ class StorageService:
     def delete(self, company_id: str, stored_filename: str) -> None:
         try:
             path = self.resolve_company_document(company_id, stored_filename)
+        except ValidationError:
+            return
+        if path.exists() and path.is_file():
+            path.unlink()
+
+    def save_tender_document(
+        self, company_id: str, tender_id: str, content: bytes
+    ) -> tuple[str, Path]:
+        if not TENDER_ID_RE.match(tender_id):
+            raise ValidationError("Invalid tender reference.")
+        folder = self.root / "companies" / company_id / "tenders" / tender_id
+        folder.mkdir(parents=True, exist_ok=True)
+        stored_filename = f"{uuid4().hex}.pdf"
+        path = folder / stored_filename
+        path.write_bytes(content)
+        return stored_filename, path
+
+    def resolve_tender_document(
+        self, company_id: str, tender_id: str, stored_filename: str
+    ) -> Path:
+        if not TENDER_ID_RE.match(tender_id) or not stored_filename.endswith(".pdf"):
+            raise ValidationError("Invalid stored tender document reference.")
+        if not STORED_NAME_RE.match(stored_filename):
+            raise ValidationError("Invalid stored tender document reference.")
+        folder = (self.root / "companies" / company_id / "tenders" / tender_id).resolve()
+        path = (folder / stored_filename).resolve()
+        if folder not in path.parents:
+            raise ValidationError("Invalid stored tender document reference.")
+        return path
+
+    def delete_tender_document(self, company_id: str, tender_id: str, stored_filename: str) -> None:
+        try:
+            path = self.resolve_tender_document(company_id, tender_id, stored_filename)
         except ValidationError:
             return
         if path.exists() and path.is_file():

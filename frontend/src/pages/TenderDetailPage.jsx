@@ -14,14 +14,15 @@ import {
 
 import { api } from "../lib/api";
 import { currentLocale } from "../i18n";
-import { Button } from "../components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
-import { StatusBadge } from "../components/ui/Badge";
+import { Badge, StatusBadge } from "../components/ui/Badge";
 import { Skeleton } from "../components/ui/Spinner";
+import { TenderDocumentsPanel } from "../components/tender/TenderDocumentsPanel";
+import { TenderRequirementsPanel } from "../components/tender/TenderRequirementsPanel";
 import { formatDate, formatDateTime } from "../lib/utils";
 
-const TABS = ["overview", "score", "eligibility", "compliance", "documents", "legal", "changes", "tasks"];
+const TABS = ["overview", "requirements", "documents", "score", "eligibility", "compliance", "legal", "changes", "tasks"];
 
 export function TenderDetailPage() {
   const { t } = useTranslation();
@@ -31,6 +32,7 @@ export function TenderDetailPage() {
   const [tender, setTender] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [requirementsKey, setRequirementsKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -113,6 +115,9 @@ export function TenderDetailPage() {
                     status={tender.status}
                     label={t(`tenders.statuses.${tender.status}`, { defaultValue: tender.status })}
                   />
+                  {tender.is_sample ? (
+                    <Badge tone="amber">{t("tenders.sampleBadge")}</Badge>
+                  ) : null}
                 </div>
                 <p className="mt-1 text-sm muted">
                   {[tender.authority, tender.reference_number].filter(Boolean).join(" · ") || "—"}
@@ -224,6 +229,14 @@ export function TenderDetailPage() {
             </CardContent>
           </Card>
         </div>
+      ) : activeTab === "documents" ? (
+        <TenderDocumentsPanel
+          tenderId={tenderId}
+          isSample={Boolean(tender.is_sample)}
+          onExtracted={() => setRequirementsKey((value) => value + 1)}
+        />
+      ) : activeTab === "requirements" ? (
+        <TenderRequirementsPanel tenderId={tenderId} refreshKey={requirementsKey} />
       ) : (
         <Card>
           <CardContent className="py-10">
@@ -239,13 +252,6 @@ export function TenderDetailPage() {
               }
               title={t("tenders.detail.pendingTitle")}
               description={t("tenders.detail.pendingBody")}
-              action={
-                activeTab === "documents" ? (
-                  <Button variant="outline" onClick={() => firstTab("overview")}>
-                    {t("tenders.detail.overview")}
-                  </Button>
-                ) : null
-              }
             />
           </CardContent>
         </Card>

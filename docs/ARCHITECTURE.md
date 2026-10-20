@@ -25,10 +25,10 @@ Routes validate input and enforce authentication. Services own business rules. R
 | `core` | Settings, MongoDB lifecycle, security primitives, dependencies |
 | `models` | Pydantic request/response contracts and shared enums |
 | `repositories` | Collection access, indexes, tenant-scoped queries |
-| `services` | Auth, company, documents, dashboard, audit, storage |
+| `services` | Auth, company, documents, tender documents/PDF extraction, requirements, dashboard, audit, storage |
 | `api/routes` | HTTP endpoints grouped by domain |
-| `integrations` | TinyFish and AI provider adapters (later phases) |
-| `processing` | PDF extraction, OCR, requirement extraction (later phases) |
+| `integrations` | TinyFish, Groq and Gemini adapters |
+| `services/pdf_extraction.py` | Deterministic PyMuPDF page text and printed-label extraction |
 
 Planned domain modules mirror the product workflow: tenders, requirements, evidence matching, scoring, eligibility, checklists, legal clauses, changes, tasks, calendar, and post-award obligations.
 
@@ -46,18 +46,21 @@ This is enforced in repositories and endpoints, not just in the UI.
 
 ## Source traceability
 
-The central invariant is that tender-specific requirements must retain provenance. The future `requirements` collection will store:
+The central invariant is that tender-specific requirements retain provenance. The `requirements` collection stores:
 
-- stable requirement ID and tender/version IDs;
-- source document ID, document name, document type, URL, retrieval timestamp;
-- viewer page and printed page;
-- clause/paragraph/table/form reference;
-- verbatim excerpt and a separately stored interpretation;
-- applicability and verification status (`verified`, `partial`, `unverified`, `conflict`);
-- consequence text and consequence source only when explicitly sourced;
-- human-review flag.
+- stable requirement ID, tender ID and source document ID;
+- source document name/type, URL when one exists, and retrieval timestamp on the document;
+- viewer page index and printed page label;
+- clause and form reference when the source states one;
+- verbatim excerpt plus a separately labelled interpretation;
+- mandatory flag (`yes` / `no` / `unknown`);
+- verification status (`verified`, `unverified`, `needs_review`, `rejected`) and a reason for failures;
+- AI origin, model and prompt version;
+- human-review changes, which are also audited.
 
-A requirement without a valid source is never presented as verified. Citation validation belongs in deterministic code, with AI used only to propose extraction candidates.
+A requirement is stored as `verified` only when deterministic code finds its normalized excerpt on the cited page. A requirement without a valid source is never presented as verified. The AI only proposes extraction candidates.
+
+Tender document bytes are validated (PDF signature, size), deduplicated by SHA-256 per tender, and stored outside the database.
 
 ## Deterministic versus AI
 
@@ -74,9 +77,10 @@ AI may propose extracted fields, requirements, clause interpretations and concis
 ## Storage
 
 - MongoDB stores structured records, workflow state and file metadata.
-- Local disk stores uploaded bytes in development under `STORAGE_DIR/companies/{company_id}/{document_id}{ext}`.
+- Local disk stores uploaded bytes in development under `STORAGE_DIR/companies/{company_id}/{uuid}{ext}` for the evidence library and `STORAGE_DIR/companies/{company_id}/tenders/{tender_id}/{uuid}.pdf` for tender PDFs.
 - Filenames are generated UUIDs; the original name is metadata only.
 - File type and size are validated before writing.
+- Direct downloads reject private/reserved hosts, re-validate redirects, enforce a size cap and require `%PDF` magic bytes.
 - The storage layer is isolated so object storage can replace it later.
 
 ## API conventions

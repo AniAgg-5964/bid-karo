@@ -9,9 +9,11 @@ from app.core.config import get_settings
 from app.core.database import Database, get_database
 from app.core.security import TokenError, decode_access_token
 from app.integrations.tinyfish import TinyFishClient
+from app.integrations.ai import AIProvider, build_ai_provider
 from app.repositories.users import UserRepository
 from app.repositories.companies import CompanyRepository
 from app.services.discovery_service import DiscoveryService
+from app.services.requirement_service import RequirementService
 from app.services.storage import StorageService
 
 settings = get_settings()
@@ -33,6 +35,18 @@ def get_discovery_service(
     client: TinyFishClient = Depends(get_discovery_client),
 ) -> DiscoveryService:
     return DiscoveryService(db, client=client)
+
+
+def get_ai_provider() -> AIProvider:
+    return build_ai_provider()
+
+
+def get_requirement_service(
+    db: Database = Depends(get_database),
+    storage: StorageService = Depends(get_storage),
+    ai: AIProvider = Depends(get_ai_provider),
+) -> RequirementService:
+    return RequirementService(db, storage, ai=ai)
 
 
 def get_current_user(

@@ -44,6 +44,14 @@ const STATUS_TONES = {
   won: "green",
   lost: "red",
   archived: "neutral",
+  extracted: "green",
+  no_text_layer: "amber",
+  failed: "red",
+  download_blocked: "red",
+  rejected: "red",
+  yes: "amber",
+  no: "neutral",
+  unknown: "neutral",
 };
 
 export function StatusBadge({ status, label }) {

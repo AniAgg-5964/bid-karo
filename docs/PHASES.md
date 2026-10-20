@@ -6,8 +6,8 @@ Each phase is committed separately. A phase is complete only when its acceptance
 | --- | --- | --- |
 | 0 | Repository assessment, architecture, folder structure, env template, data contracts, test strategy, ordered plan | Complete |
 | 1 | React/Vite app, FastAPI, MongoDB, auth, onboarding, company profile, uploads, English/Hindi, responsive dashboard | Complete |
-| 2 | Real TinyFish discovery and retrieval, tender ingestion, document collection, deduplication | Complete for discovery, retrieval, ingestion and deduplication; tender attachment collection moves with PDF extraction in Phase 3 |
-| 3 | PDF extraction, structured requirements, citations, validation, processing status | Not started |
+| 2 | Real TinyFish discovery and retrieval, tender ingestion, document collection, deduplication | Complete for discovery, retrieval, ingestion and deduplication |
+| 3 | Tender PDFs, page-level text extraction, cited requirements, deterministic citation validation, document/requirement UI | Complete for PDF text layers; OCR/ scanned PDFs are explicitly deferred |
 | 4 | Deterministic suitability score, eligibility, evidence matching, checklist, legal clauses | Not started |
 | 5 | Tasks, reminders, snapshots, change detection, calendar/export, post-award obligations | Not started |
 | 6 | Integration, polish, security review, full tests, docs, demo, known limitations | Not started |
@@ -51,7 +51,24 @@ Dependency hardening (2026-10-20, after Phase 1): `react-router-dom` 6 -> 7, `vi
 
 Phase 2 verification on 2026-10-20: backend `pytest` 46 passed; frontend `npm test` 10 passed; `npm run build` succeeded. Live runs against TinyFish with the demo profile executed 6 profile queries, returned 55-59 search results per run and fetched 6-8 pages (2-4 blocked). Official e-procurement portals were recognised as index pages and listed under sources; a search-result page whose only deadline was already past was counted as closed; pages without a deadline or reference were counted as unverified. The tender list was therefore empty on that date, which is the honest outcome: no open, source-backed, profile-matched tender was found. The ingestion path itself is exercised by tests, including a dated listing table and a saved tender that flows to the dashboard deadline metric. English/Hindi and light/dark were re-checked on the discovery page.
 
-Known limitation: TinyFish fetch returns page text without hyperlinks and several official portals block automated retrieval (`blocked`). Listing pages are therefore the main route to individual notices, and a run can legitimately return no open tenders. Phase 3 adds document collection and PDF extraction from saved tenders.
+Known limitation: TinyFish fetch returns page text without hyperlinks and several official portals block automated retrieval (`blocked`). Listing pages are therefore the main route to individual notices, and a run can legitimately return no open tenders. Phase 3 added upload-first document collection and PDF text extraction on top of saved tenders.
+
+## Phase 3 exit criteria
+
+- Tender PDFs are acquired upload-first, with an opportunistic direct download only when a public PDF URL is supplied. Downloads re-validate redirects, reject private/reserved hosts, cap size, require `%PDF` magic bytes and record a reason (`http_403`, `not_pdf`, `too_large`, `timeout`, `network_error`) instead of pretending a document was collected.
+- The same PDF (SHA-256) is stored once per tender. Bytes live under `storage/companies/{company_id}/tenders/{tender_id}/`; metadata, page rows and requirements are company-scoped.
+- PyMuPDF extracts text page by page and stores the viewer page index plus the printed page label. A PDF with no text layer is stored as `no_text_layer` and cannot be sent to the AI; OCR is explicitly deferred.
+- Document status is one of `extracted`, `no_text_layer` or `failed`, with encrypted/corrupt PDFs reported honestly.
+- AI extraction is user-triggered per document, not automatic. Groq is used through a provider abstraction (`AI_PROVIDER=groq`); Gemini remains supported by the same interface.
+- AI output is treated as untrusted: each item is validated with Pydantic, each requirement needs a verbatim excerpt and a cited page, and the excerpt must be found on that page after whitespace/typography normalisation. Failures are stored as `unverified` with a reason; they are never silently dropped or presented as verified.
+- Requirements keep document ID, viewer page, printed page, clause/form reference, verbatim excerpt, interpretation, mandatory flag, source URL and retrieval provenance, model and prompt version.
+- Re-running extraction is idempotent (duplicates are skipped); `replace=true` replaces only AI-origin requirements for that document.
+- A human can mark a requirement `verified`, `needs_review` or `rejected`; changes are audited.
+- The tender workspace has working **Documents** and **Requirements** tabs with page viewing, filters, verification badges, honest empty/blocked/scanned states and English/Hindi strings.
+
+Phase 3 verification on 2026-10-20: backend `pytest` 68 passed; frontend `npm test` 16 passed; `npm run build` succeeded. A clearly labelled synthetic 8-page RFP (`scripts/make-sample-tender.py`) was processed end to end: PyMuPDF extracted 8/8 text pages, Groq (`openai/gpt-oss-120b`) extracted 33 requirements across 3 chunks, and all 33 excerpts were found verbatim on their cited pages. The browser review covered the sample badge, documents panel, extracted-page viewer, requirements summary/filters, verbatim excerpts and the source-page modal. Atlas migration copied the demo company's records to MongoDB Atlas and the app logged in and served the same data against Atlas.
+
+Known limitations: OCR is not implemented, so scanned PDFs are flagged and require a digital copy; direct downloads are best-effort and portals may block them; AI extraction runs synchronously and is capped per request (`AI_EXTRACTION_MAX_CHUNKS`, 12; `AI_EXTRACTION_MAX_PAGES`, 80); requirement extraction is not eligibility or scoring, which remains Phase 4.
 
 ## Later-phase guardrails
 

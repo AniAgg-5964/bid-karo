@@ -21,6 +21,11 @@ class Settings(BaseSettings):
 
     mongodb_uri: str = "mongodb://localhost:27017"
     mongodb_db: str = "bidkaro"
+    mongodb_app_name: str = "BidKaro"
+    mongodb_max_pool_size: int = 20
+    mongodb_connect_timeout_ms: int = 10000
+    mongodb_server_selection_timeout_ms: int = 10000
+    mongodb_retry_writes: bool = True
 
     jwt_secret: str = "dev-only-change-me-before-any-real-deployment"
     jwt_algorithm: str = "HS256"
@@ -37,10 +42,18 @@ class Settings(BaseSettings):
     ai_provider: str = "gemini"
     gemini_api_key: str = ""
     gemini_model: str = ""
+    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
     groq_api_key: str = ""
     groq_model: str = ""
     groq_base_url: str = "https://api.groq.com/openai/v1"
     ai_request_timeout_seconds: int = 60
+    ai_max_output_tokens: int = 2000
+
+    pdf_max_pages: int = 200
+    ai_extraction_max_chunk_chars: int = 4000
+    ai_extraction_max_pages_per_chunk: int = 3
+    ai_extraction_max_chunks: int = 12
+    ai_extraction_max_pages: int = 80
 
     discovery_max_candidates: int = 20
     discovery_fetch_limit: int = 12
