@@ -130,13 +130,23 @@ async function main() {
   // 3. Live discovery.
   await page.getByRole("link", { name: "Discover tenders" }).click();
   await page.waitForSelector("text=/Live discovery is (connected|not configured)/");
-  await caption(page, "Discovery runs a live TinyFish search built from your company profile.", 7000);
+  await caption(page, "Live TinyFish search finds open tenders that match your services, sectors and regions.", 7000);
+  await page.evaluate(() => {
+    const heading = Array.from(document.querySelectorAll("h2")).find((node) =>
+      /Open tenders/i.test(node.textContent || ""),
+    );
+    if (heading) heading.scrollIntoView({ block: "start" });
+  });
+  await sleep(1500);
+  await caption(page, "Every tender shows its closing date, the source and why it matched. Expired notices are never listed.", 8000);
   await shot(page, "02-discover");
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await sleep(500);
 
   // 4. Saved tenders.
   await page.getByRole("link", { name: "My tenders" }).click();
   await page.waitForSelector("text=/Synthetic sample tender/");
-  await caption(page, "Saved tenders. The first one is a clearly labelled synthetic sample.", 7000);
+  await caption(page, "A tender saved from discovery becomes a workspace with its own documents, checklist and reminders.", 8000);
   await shot(page, "03-tenders");
 
   // 5. Tender overview.

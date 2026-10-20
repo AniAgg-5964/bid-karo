@@ -27,7 +27,7 @@
 
 ## What is real and what is synthetic
 
-- **Real.** The Discover page statistics come from a live TinyFish run. The three changes in *Changes and alerts* were produced by rechecking a live-discovered source with TinyFish and diffing the stored fields. Every requirement, task and obligation shown carries a real citation to a stored document, page and clause.
+- **Real.** The Discover page is a live TinyFish run: the tenders shown were found by that run, with their closing dates read from the source, and the three changes in *Changes and alerts* were produced by rechecking a live-discovered source with TinyFish and diffing the stored fields. Every requirement, task and obligation shown carries a real citation to a stored document, page and clause.
 - **Synthetic and labelled.** The sample tender, its RFP, the company evidence library and the 21 seeded requirements come from `scripts/make-sample-tender.py` and `scripts/seed-demo.py`. The tender carries a **Synthetic sample** badge and every page of the PDF is stamped `SYNTHETIC SAMPLE - NOT AN OFFICIAL TENDER`. The authority is fictional.
 - **Not shown.** No eligibility is claimed, no bid is submitted, no email is sent (SMTP is not configured on the review machine) and no calendar is connected.
 
