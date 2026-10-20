@@ -15,6 +15,7 @@ treated as untrusted input.
 
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime, time, timedelta, timezone
 
 from app.core.config import Settings, get_settings
@@ -35,6 +36,8 @@ from app.services.relevance import company_terms, has_any_terms, score_tender
 
 MAX_QUERIES = 6
 FETCH_BATCH = 10
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_iso(value: str | None) -> datetime | None:
@@ -616,4 +619,12 @@ class DiscoveryService:
             entity_id=tender["id"],
             metadata={"title": tender["title"], "source_url": tender["source_url"]},
         )
+        try:
+            from app.services.workflow import WorkflowService
+
+            WorkflowService(self.db).capture_snapshot(
+                tender_id=tender["id"], company_id=company_id, user_id=user_id
+            )
+        except Exception:  # noqa: BLE001 - saving must not fail after the write
+            logger.exception("Could not capture the first snapshot for %s", tender["id"])
         return tender

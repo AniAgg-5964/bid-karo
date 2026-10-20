@@ -1,13 +1,23 @@
 ﻿import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ExternalLink, Globe2, LogOut, Moon, Palette, ShieldCheck, Sun, UserRound } from "lucide-react";
+import {
+  BellRing,
+  ExternalLink,
+  Globe2,
+  LogOut,
+  Moon,
+  Palette,
+  ShieldCheck,
+  Sun,
+  UserRound,
+} from "lucide-react";
 
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useToast } from "../contexts/ToastContext";
 import { changeLanguage, SUPPORTED_LANGUAGES } from "../i18n";
-import { API_URL } from "../lib/api";
+import { API_URL, api } from "../lib/api";
 import { currentLocale } from "../i18n";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Button } from "../components/ui/Button";
@@ -20,13 +30,22 @@ export function SettingsPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const toast = useToast();
-  const { session, logout, updateSecurity } = useAuth();
+  const { session, logout, updateSecurity, refreshSession } = useAuth();
   const { theme, setTheme } = useTheme();
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [securityOpen, setSecurityOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [securityBusy, setSecurityBusy] = useState(false);
   const [securityError, setSecurityError] = useState("");
+  const [reminderEmail, setReminderEmail] = useState(
+    Boolean(session?.company?.reminder_email_enabled),
+  );
+  const [leadDays, setLeadDays] = useState(
+    session?.company?.reminder_lead_days?.length
+      ? session.company.reminder_lead_days
+      : [7, 3, 1],
+  );
+  const [savingReminders, setSavingReminders] = useState(false);
 
   const docsUrl = `${API_URL.replace(/\/api$/, "")}/docs`;
 
@@ -38,6 +57,34 @@ export function SettingsPage() {
   const onTheme = (value) => {
     setTheme(value);
     toast.success(t("settings.saved"));
+  };
+
+  const toggleLeadDay = (day) => {
+    setLeadDays((current) => {
+      if (current.includes(day)) {
+        const next = current.filter((item) => item !== day);
+        return next.length ? next : current;
+      }
+      return [...current, day].sort((a, b) => b - a);
+    });
+  };
+
+  const saveReminders = async () => {
+    setSavingReminders(true);
+    try {
+      await api.patch("/companies/me", {
+        reminder_email_enabled: reminderEmail,
+        reminder_lead_days: leadDays,
+      });
+      await refreshSession().catch(() => null);
+      toast.success(t("settings.remindersSaved"));
+    } catch (err) {
+      toast.error(
+        err.message === "NETWORK_ERROR" ? t("errors.network") : err.message || t("errors.generic"),
+      );
+    } finally {
+      setSavingReminders(false);
+    }
   };
 
   return (
@@ -101,6 +148,75 @@ export function SettingsPage() {
                     </button>
                   ))}
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <BellRing className="h-4 w-4 text-teal-700" />
+                <CardTitle>{t("settings.reminders")}</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-5 pt-4">
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-navy-900 dark:text-white">
+                    {t("settings.emailReminders")}
+                  </p>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={reminderEmail}
+                    onClick={() => setReminderEmail((value) => !value)}
+                    className={cn(
+                      "relative h-6 w-11 rounded-full transition",
+                      reminderEmail ? "bg-teal-600" : "bg-navy-200 dark:bg-navy-700",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition",
+                        reminderEmail ? "left-[22px]" : "left-0.5",
+                      )}
+                    />
+                  </button>
+                </div>
+                <p className="mt-1 text-xs leading-5 muted">
+                  {reminderEmail
+                    ? t("settings.emailRemindersOn")
+                    : t("settings.emailRemindersOff")}
+                </p>
+                <p className="mt-1 text-xs leading-5 muted">{t("settings.remindersHint")}</p>
+              </div>
+
+              <div className="border-t border-navy-100 pt-4 dark:border-navy-800">
+                <p className="text-sm font-medium text-navy-900 dark:text-white">
+                  {t("settings.leadDays")}
+                </p>
+                <p className="mt-0.5 text-xs muted">{t("settings.leadDaysHint")}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {[14, 7, 3, 1].map((day) => (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => toggleLeadDay(day)}
+                      aria-pressed={leadDays.includes(day)}
+                      className={cn(
+                        "rounded-lg border px-3 py-1.5 text-xs font-semibold transition",
+                        leadDays.includes(day)
+                          ? "border-teal-300 bg-teal-50 text-teal-800 dark:border-teal-800 dark:bg-teal-950 dark:text-teal-200"
+                          : "border-navy-200 text-navy-600 hover:bg-navy-50 dark:border-navy-700 dark:text-navy-300 dark:hover:bg-navy-800",
+                      )}
+                    >
+                      {day}d
+                    </button>
+                  ))}
+                </div>
+                <Button className="mt-4" size="sm" onClick={saveReminders} loading={savingReminders}>
+                  {t("common.save")}
+                </Button>
               </div>
             </CardContent>
           </Card>

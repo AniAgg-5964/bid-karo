@@ -14,6 +14,7 @@ import { TenderDetailPage } from "./pages/TenderDetailPage";
 import { ChecklistPage } from "./pages/ChecklistPage";
 import { DocumentsPage } from "./pages/DocumentsPage";
 import { ChangesPage } from "./pages/ChangesPage";
+import { RemindersPage } from "./pages/RemindersPage";
 import { CompanyProfilePage } from "./pages/CompanyProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
@@ -75,6 +76,7 @@ export default function App() {
         <Route path="checklist" element={<ChecklistPage />} />
         <Route path="documents" element={<DocumentsPage />} />
         <Route path="changes" element={<ChangesPage />} />
+        <Route path="reminders" element={<RemindersPage />} />
         <Route path="company" element={<CompanyProfilePage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>

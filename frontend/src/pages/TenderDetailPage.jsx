@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
   CalendarClock,
+  CalendarPlus,
   ExternalLink,
   FileText,
   ShieldCheck,
@@ -12,12 +13,15 @@ import {
 
 import { api } from "../lib/api";
 import { currentLocale } from "../i18n";
+import { useToast } from "../contexts/ToastContext";
+import { Button } from "../components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Badge, StatusBadge } from "../components/ui/Badge";
 import { Skeleton } from "../components/ui/Spinner";
 import { TenderDocumentsPanel } from "../components/tender/TenderDocumentsPanel";
 import { TenderRequirementsPanel } from "../components/tender/TenderRequirementsPanel";
+import { TenderChangesPanel } from "../components/tender/TenderChangesPanel";
 import {
   TenderEligibilityPanel,
   TenderLegalPanel,
@@ -26,10 +30,22 @@ import {
 } from "../components/tender/TenderAssessmentPanels";
 import { formatDate, formatDateTime } from "../lib/utils";
 
-const TABS = ["overview", "requirements", "documents", "score", "eligibility", "compliance", "legal", "changes", "tasks"];
+const TABS = [
+  "overview",
+  "requirements",
+  "documents",
+  "score",
+  "eligibility",
+  "compliance",
+  "legal",
+  "changes",
+  "tasks",
+  "obligations",
+];
 
 export function TenderDetailPage() {
   const { t } = useTranslation();
+  const toast = useToast();
   const { tenderId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = TABS.includes(searchParams.get("tab")) ? searchParams.get("tab") : "overview";
@@ -93,6 +109,16 @@ export function TenderDetailPage() {
 
   const openTab = (tab) => setSearchParams({ tab });
 
+  const downloadCalendar = async () => {
+    try {
+      await api.download(`/tenders/${tenderId}/calendar.ics`, `bidkaro-tender-${tenderId}.ics`);
+    } catch (err) {
+      toast.error(
+        err.message === "NETWORK_ERROR" ? t("errors.network") : err.message || t("errors.generic"),
+      );
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-2 text-xs muted">
@@ -128,17 +154,23 @@ export function TenderDetailPage() {
                 </p>
               </div>
             </div>
-            {tender.source_url ? (
-              <a
-                href={tender.source_url}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-navy-200 px-3.5 py-2 text-xs font-semibold text-navy-700 hover:bg-navy-50 dark:border-navy-700 dark:text-navy-200 dark:hover:bg-navy-800"
-              >
-                {t("tenders.source")}
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            ) : null}
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" onClick={downloadCalendar}>
+                <CalendarPlus className="h-3.5 w-3.5" />
+                {t("common.exportCalendar")}
+              </Button>
+              {tender.source_url ? (
+                <a
+                  href={tender.source_url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-navy-200 px-3.5 py-2 text-xs font-semibold text-navy-700 hover:bg-navy-50 dark:border-navy-700 dark:text-navy-200 dark:hover:bg-navy-800"
+                >
+                  {t("tenders.source")}
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              ) : null}
+            </div>
           </div>
 
           <div className="grid gap-4 border-t border-navy-100 pt-4 dark:border-navy-800 sm:grid-cols-3">
@@ -163,7 +195,7 @@ export function TenderDetailPage() {
         </CardContent>
       </Card>
 
-      <div className="flex gap-1 overflow-x-auto rounded-xl border border-navy-100 bg-white p-1 dark:border-navy-800 dark:bg-navy-900">
+      <div className="flex flex-wrap gap-1 rounded-xl border border-navy-100 bg-white p-1 dark:border-navy-800 dark:bg-navy-900">
         {TABS.map((tab) => (
           <button
             key={tab}
@@ -246,11 +278,15 @@ export function TenderDetailPage() {
       ) : activeTab === "eligibility" ? (
         <TenderEligibilityPanel tenderId={tenderId} onOpenTab={openTab} />
       ) : activeTab === "compliance" ? (
-        <TenderTasksPanel tenderId={tenderId} complianceOnly />
+        <TenderTasksPanel tenderId={tenderId} complianceOnly phase="pre_award" />
       ) : activeTab === "legal" ? (
         <TenderLegalPanel tenderId={tenderId} />
+      ) : activeTab === "changes" ? (
+        <TenderChangesPanel tenderId={tenderId} />
       ) : activeTab === "tasks" ? (
-        <TenderTasksPanel tenderId={tenderId} />
+        <TenderTasksPanel tenderId={tenderId} phase="pre_award" />
+      ) : activeTab === "obligations" ? (
+        <TenderTasksPanel tenderId={tenderId} phase="post_award" />
       ) : (
         <Card>
           <CardContent className="py-10">

@@ -95,6 +95,14 @@ class Database:
         return self.db["changes"]
 
     @property
+    def tender_snapshots(self):
+        return self.db["tender_snapshots"]
+
+    @property
+    def reminders(self):
+        return self.db["reminders"]
+
+    @property
     def audit_logs(self):
         return self.db["audit_logs"]
 
@@ -184,6 +192,23 @@ class Database:
         self.changes.create_index(
             [("company_id", ASCENDING), ("detected_at", DESCENDING)],
             name="ix_changes_company_detected",
+        )
+        self.changes.create_index(
+            [("company_id", ASCENDING), ("tender_id", ASCENDING), ("detected_at", DESCENDING)],
+            name="ix_changes_company_tender_detected",
+        )
+        self.tender_snapshots.create_index(
+            [("company_id", ASCENDING), ("tender_id", ASCENDING), ("captured_at", DESCENDING)],
+            name="ix_snapshots_company_tender_captured",
+        )
+        self.reminders.create_index(
+            [("company_id", ASCENDING), ("reminder_key", ASCENDING)],
+            unique=True,
+            name="uq_reminders_company_key",
+        )
+        self.reminders.create_index(
+            [("company_id", ASCENDING), ("status", ASCENDING), ("due_at", ASCENDING)],
+            name="ix_reminders_company_status_due",
         )
 
         self.discovered_tenders.create_index(

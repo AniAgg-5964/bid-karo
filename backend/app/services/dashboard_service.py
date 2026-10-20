@@ -14,7 +14,9 @@ from app.models.dashboard import (
 from app.models.company import calculate_profile_completeness
 from app.repositories.audit import AuditRepository
 from app.repositories.documents import DocumentRepository
-from app.repositories.tenders import ChangeRepository, ChecklistRepository, TenderRepository
+from app.repositories.tenders import ChecklistRepository, TenderRepository
+from app.repositories.workflow import ChangeRepository, ReminderRepository
+from app.services.reminders import ReminderService
 
 ACTIVITY_LABELS = {
     "auth.registered": "Account created",
@@ -22,16 +24,23 @@ ACTIVITY_LABELS = {
     "document.uploaded": "Evidence document uploaded",
     "document.deleted": "Evidence document removed",
     "tender.saved": "Tender saved",
+    "tender.snapshot_captured": "Tender source snapshot captured",
+    "tender.rechecked": "Saved tender source rechecked",
+    "change.reviewed": "Tender change reviewed",
     "checklist.updated": "Checklist task updated",
+    "checklist.generated": "Tender checklist generated",
+    "obligations.generated": "Post-award obligations generated",
     "discovery.run": "Tender discovery run completed",
 }
 
 
 class DashboardService:
     def __init__(self, db: Database) -> None:
+        self.db = db
         self.tenders = TenderRepository(db)
         self.tasks = ChecklistRepository(db)
         self.changes = ChangeRepository(db)
+        self.reminders = ReminderRepository(db)
         self.documents = DocumentRepository(db)
         self.audit = AuditRepository(db)
 
@@ -47,6 +56,8 @@ class DashboardService:
         deadlines = task_deadlines + tender_deadlines
         document_count = self.documents.count_for_company(company_id)
         pending_changes = self.changes.count_pending(company_id)
+        ReminderService(self.db).sync(company)
+        pending_reminders = self.reminders.count_pending(company_id)
         completeness = calculate_profile_completeness(company)
 
         tenders, _ = self.tenders.list_for_company(company_id, limit=5)
@@ -107,6 +118,16 @@ class DashboardService:
                     tone="warning",
                 )
             )
+        if pending_reminders:
+            actions.append(
+                PriorityAction(
+                    key="reminders",
+                    title=f"{pending_reminders} reminder{'s' if pending_reminders != 1 else ''} due or upcoming",
+                    description="Deadlines, tasks and evidence expiry dates that need attention.",
+                    href="/app/reminders",
+                    tone="info",
+                )
+            )
 
         return DashboardSummary(
             company_name=company["name"],
@@ -119,6 +140,7 @@ class DashboardService:
                 upcoming_deadlines=deadlines,
                 evidence_documents=document_count,
                 pending_changes=pending_changes,
+                pending_reminders=pending_reminders,
             ),
             priority_actions=actions[:4],
             recent_tenders=[self.to_tender_card(item) for item in tenders],

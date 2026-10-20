@@ -23,7 +23,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui
 import { EmptyState } from "../ui/EmptyState";
 import { Select } from "../ui/Field";
 import { Skeleton } from "../ui/Spinner";
-import { cn, formatDate } from "../../lib/utils";
+import { cn, formatDate, formatDateTime } from "../../lib/utils";
 
 const TASK_STATUSES = [
   "missing",
@@ -333,7 +333,7 @@ export function TenderEligibilityPanel({ tenderId, onOpenTab }) {
   );
 }
 
-export function TenderTasksPanel({ tenderId, complianceOnly = false }) {
+export function TenderTasksPanel({ tenderId, complianceOnly = false, phase = null }) {
   const { t } = useTranslation();
   const toast = useToast();
   const [items, setItems] = useState([]);
@@ -341,19 +341,21 @@ export function TenderTasksPanel({ tenderId, complianceOnly = false }) {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState(null);
+  const isPostAward = phase === "post_award";
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const data = await api.get(`/tenders/${tenderId}/checklist`);
+      const query = phase ? `?phase=${phase}` : "";
+      const data = await api.get(`/tenders/${tenderId}/checklist${query}`);
       setItems(data.items || []);
     } catch (err) {
       setError(err.message === "NETWORK_ERROR" ? t("errors.network") : err.message || t("errors.generic"));
     } finally {
       setLoading(false);
     }
-  }, [tenderId, t]);
+  }, [tenderId, t, phase]);
 
   useEffect(() => {
     load();
@@ -370,7 +372,10 @@ export function TenderTasksPanel({ tenderId, complianceOnly = false }) {
   const generate = async () => {
     setGenerating(true);
     try {
-      const data = await api.post(`/tenders/${tenderId}/checklist/generate`, {});
+      const endpoint = isPostAward
+        ? `/tenders/${tenderId}/obligations/generate`
+        : `/tenders/${tenderId}/checklist/generate`;
+      const data = await api.post(endpoint, {});
       toast.success(data.message);
       await load();
     } catch (err) {
@@ -400,20 +405,26 @@ export function TenderTasksPanel({ tenderId, complianceOnly = false }) {
             <div className="flex items-center gap-2">
               <ListChecks className="h-4 w-4 text-teal-700" />
               <CardTitle>
-                {complianceOnly
-                  ? t("tenders.assessment.complianceTitle")
-                  : t("tenders.assessment.tasksTitle")}
+                {isPostAward
+                  ? t("tenders.assessment.obligationsTitle")
+                  : complianceOnly
+                    ? t("tenders.assessment.complianceTitle")
+                    : t("tenders.assessment.tasksTitle")}
               </CardTitle>
             </div>
             <CardDescription>
-              {complianceOnly
-                ? t("tenders.assessment.complianceSubtitle")
-                : t("tenders.assessment.tasksSubtitle")}
+              {isPostAward
+                ? t("tenders.assessment.obligationsSubtitle")
+                : complianceOnly
+                  ? t("tenders.assessment.complianceSubtitle")
+                  : t("tenders.assessment.tasksSubtitle")}
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={generate} loading={generating}>
             <RefreshCw className="h-3.5 w-3.5" />
-            {t("tenders.assessment.generate")}
+            {isPostAward
+              ? t("tenders.assessment.generateObligations")
+              : t("tenders.assessment.generate")}
           </Button>
         </div>
       </CardHeader>
@@ -444,6 +455,13 @@ export function TenderTasksPanel({ tenderId, complianceOnly = false }) {
                       <Badge tone="neutral">
                         {t(`tenders.requirements.categories.${task.category}`, {
                           defaultValue: task.category,
+                        })}
+                      </Badge>
+                    ) : null}
+                    {task.phase === "post_award" && task.trigger_type ? (
+                      <Badge tone="teal">
+                        {t(`tenders.assessment.triggerTypes.${task.trigger_type}`, {
+                          defaultValue: task.trigger_type.replace(/_/g, " "),
                         })}
                       </Badge>
                     ) : null}
@@ -512,17 +530,43 @@ export function TenderTasksPanel({ tenderId, complianceOnly = false }) {
                 {task.clause_reference
                   ? ` · ${t("tenders.requirements.clause", { ref: task.clause_reference })}`
                   : ""}
+                {task.source_retrieved_at
+                  ? ` · ${t("tenders.requirements.retrieved", {
+                      date: formatDateTime(task.source_retrieved_at, currentLocale()),
+                    })}`
+                  : ""}
               </p>
+              {task.source_url ? (
+                <a
+                  href={task.source_url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline dark:text-teal-300"
+                >
+                  {t("tenders.requirements.source")}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              ) : null}
             </article>
           ))
         ) : (
           <EmptyState
             icon={ListChecks}
-            title={t("tenders.assessment.noTasksTitle")}
-            description={t("tenders.assessment.noTasksBody")}
+            title={
+              isPostAward
+                ? t("tenders.assessment.noObligationsTitle")
+                : t("tenders.assessment.noTasksTitle")
+            }
+            description={
+              isPostAward
+                ? t("tenders.assessment.noObligationsBody")
+                : t("tenders.assessment.noTasksBody")
+            }
             action={
               <Button variant="outline" onClick={generate} loading={generating}>
-                {t("tenders.assessment.generate")}
+                {isPostAward
+                  ? t("tenders.assessment.generateObligations")
+                  : t("tenders.assessment.generate")}
               </Button>
             }
           />

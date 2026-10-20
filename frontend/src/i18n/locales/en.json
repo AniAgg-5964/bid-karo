@@ -41,7 +41,10 @@
     "saved": "Saved",
     "notAvailable": "Not available yet",
     "phaseNote": "This workspace is being delivered in phases. Values shown here come from stored records only.",
-    "of": "of"
+    "of": "of",
+    "exportCalendar": "Export calendar",
+    "capturing": "Capturing…",
+    "rechecking": "Rechecking…"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -53,7 +56,8 @@
     "company": "Company profile",
     "settings": "Settings",
     "workspace": "Workspace",
-    "account": "Account"
+    "account": "Account",
+    "reminders": "Reminders"
   },
   "auth": {
     "welcomeBack": "Welcome back",
@@ -299,7 +303,16 @@
     "securityModalTitle": "Confirm with your password",
     "securityModalBody": "Enter your current password to change how you sign in.",
     "currentPassword": "Current password",
-    "securityUpdated": "Security setting updated."
+    "securityUpdated": "Security setting updated.",
+    "reminders": "Reminders",
+    "remindersHint": "Deadlines, tasks and evidence expiry dates generated from stored records.",
+    "emailReminders": "Email reminders",
+    "emailRemindersOn": "Due reminders are emailed when the send-reminders job runs.",
+    "emailRemindersOff": "Email delivery is off. In-app reminders still appear.",
+    "emailNotConfigured": "SMTP is not configured on this server, so the email job cannot send yet.",
+    "leadDays": "Reminder lead days",
+    "leadDaysHint": "Choose how many days before a deadline a reminder is due.",
+    "remindersSaved": "Reminder preferences saved."
   },
   "tenders": {
     "title": "My tenders",
@@ -340,7 +353,31 @@
       "sourceTitle": "Source and provenance",
       "sourceBody": "Original source, retrieval time and collected documents will be shown here with every requirement.",
       "keyInfo": "Key information",
-      "requirements": "Requirements"
+      "requirements": "Requirements",
+      "obligations": "Post-award",
+      "changesPanel": {
+        "title": "Source changes",
+        "subtitle": "Snapshots of stored tender fields, rechecked against the source only when you ask.",
+        "recheck": "Recheck source",
+        "capture": "Capture snapshot",
+        "snapshots": "Snapshots",
+        "noSnapshots": "No snapshots captured yet.",
+        "emptyTitle": "No source changes detected",
+        "emptyBody": "Capture a baseline snapshot now. When you recheck the source later, field changes appear here.",
+        "lastCaptured": "Last captured {{date}}",
+        "changeCount": "{{count}} change",
+        "changeCount_plural": "{{count}} changes",
+        "reviewed": "Change review saved.",
+        "recheckFailed": "The source could not be rechecked.",
+        "captured": "Snapshot captured.",
+        "noChanges": "No field changes since the last snapshot.",
+        "failed": "Snapshot failed.",
+        "from": "Before",
+        "to": "After",
+        "reviewStatus": "Review",
+        "snapshotMeta": "{{count}} requirement · {{hash}}",
+        "snapshotMeta_plural": "{{count}} requirements · {{hash}}"
+      }
     },
     "sampleBadge": "Synthetic sample",
     "documentsPanel": {
@@ -542,6 +579,16 @@
         "verified": "Verified",
         "gating": "Mandatory gates",
         "openTasks": "Open tasks"
+      },
+      "obligationsTitle": "Post-award obligations",
+      "obligationsSubtitle": "Cited obligations that apply after award or during the contract. No deadline is invented; the source trigger is shown when stated.",
+      "generateObligations": "Generate obligations",
+      "noObligationsTitle": "No post-award obligations yet",
+      "noObligationsBody": "Generate cited obligations from performance, warranty or contract-stage requirements.",
+      "triggerTypes": {
+        "after_award": "After award",
+        "during_contract": "During contract",
+        "after_completion": "After completion"
       }
     }
   },
@@ -555,14 +602,42 @@
     "due": "Due",
     "owner": "Owner",
     "status": "Status",
-    "noDue": "No deadline stated"
+    "noDue": "No deadline stated",
+    "phase": "Phase",
+    "preAward": "Before submission",
+    "postAward": "After award",
+    "exportCalendar": "Export calendar"
   },
   "changes": {
     "title": "Changes & alerts",
     "subtitle": "Corrigenda, deadline changes and affected requirements.",
     "emptyTitle": "No changes detected",
     "emptyBody": "Once saved tenders are rechecked, source changes and affected tasks will appear here.",
-    "review": "Review"
+    "review": "Review",
+    "filterAll": "All",
+    "filterPending": "Pending",
+    "pendingCount": "{{count}} pending",
+    "acknowledge": "Acknowledge",
+    "dismiss": "Dismiss",
+    "acknowledged": "Change acknowledged.",
+    "dismissed": "Change dismissed.",
+    "noPending": "No changes need review.",
+    "tender": "Tender",
+    "severity": "Severity",
+    "field": "Field",
+    "fields": {
+      "title": "Title",
+      "authority": "Authority",
+      "reference_number": "Reference number",
+      "deadline": "Submission deadline",
+      "description": "Source summary",
+      "source_url": "Source URL",
+      "source_type": "Source type",
+      "value_amount": "Contract value",
+      "value_currency": "Value currency",
+      "location": "Location",
+      "requirements": "Requirements"
+    }
   },
   "discover": {
     "title": "Discover tenders",
@@ -651,7 +726,13 @@
     "not_applicable": "Not applicable",
     "in_progress": "In progress",
     "pending": "Pending review",
-    "needs_review": "Needs review"
+    "needs_review": "Needs review",
+    "acknowledged": "Acknowledged",
+    "dismissed": "Dismissed",
+    "sent": "Sent",
+    "cancelled": "Cancelled",
+    "pre_award": "Pre-award",
+    "post_award": "Post-award"
   },
   "activity": {
     "auth.registered": "Account created",
@@ -665,12 +746,45 @@
     "auth.registered_unverified": "Account created pending email verification",
     "auth.otp_login_changed": "Email sign-in setting changed",
     "evidence.decision": "Requirement evidence reviewed",
-    "checklist.generated": "Tender checklist generated"
+    "checklist.generated": "Tender checklist generated",
+    "tender.snapshot_captured": "Tender source snapshot captured",
+    "tender.rechecked": "Saved tender source rechecked",
+    "change.reviewed": "Tender change reviewed",
+    "obligations.generated": "Post-award obligations generated"
   },
   "errors": {
     "network": "We could not reach the server. Check that the API is running and try again.",
     "unauthorized": "Your session has expired. Please sign in again.",
     "generic": "Something went wrong. Please try again.",
     "notFound": "The requested page was not found."
+  },
+  "reminders": {
+    "title": "Reminders",
+    "subtitle": "Deadlines, tasks and evidence expiry dates derived from your stored records.",
+    "emptyTitle": "No reminders",
+    "emptyBody": "Add a tender deadline, a dated task or an expiring document to generate reminders.",
+    "emailTitle": "Email reminders",
+    "emailOn": "Email delivery is enabled. Run scripts/send-reminders.py --apply to send due reminders.",
+    "emailOff": "Email delivery is off. In-app reminders are still shown.",
+    "emailNotConfigured": "SMTP is not configured, so no email can be sent yet.",
+    "emailAppMissing": "SMTP_APP_PASSWORD is missing on the server.",
+    "exportCalendar": "Export calendar",
+    "acknowledge": "Acknowledge",
+    "dismiss": "Dismiss",
+    "acknowledged": "Reminder acknowledged.",
+    "dismissed": "Reminder dismissed.",
+    "due": "Due {{date}}",
+    "lead": "{{count}} day before",
+    "lead_plural": "{{count}} days before",
+    "types": {
+      "deadline": "Tender deadline",
+      "task": "Checklist task",
+      "document_expiry": "Evidence expiry"
+    },
+    "pending": "Pending",
+    "acknowledgedLabel": "Acknowledged",
+    "dismissedLabel": "Dismissed",
+    "open": "Open",
+    "note": "Reminders are generated from stored deadlines and tasks, not from a background scheduler. Email delivery needs SMTP and the cron-able reminder job."
   }
 }

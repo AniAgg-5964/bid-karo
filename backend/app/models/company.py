@@ -36,6 +36,14 @@ class CompanyBase(BaseModel):
     employee_count: int | None = Field(default=None, ge=0)
     established_year: int | None = Field(default=None, ge=1900, le=2100)
     preferences: CompanyPreferences = Field(default_factory=CompanyPreferences)
+    reminder_email_enabled: bool = False
+    reminder_lead_days: list[int] = Field(default_factory=lambda: [7, 3, 1], max_length=5)
+
+    @field_validator("reminder_lead_days")
+    @classmethod
+    def normalize_reminder_lead_days(cls, value: list[int]) -> list[int]:
+        days = sorted({int(day) for day in value if 1 <= int(day) <= 90}, reverse=True)
+        return days or [7, 3, 1]
 
 
 class CompanyUpdate(BaseModel):
@@ -52,7 +60,17 @@ class CompanyUpdate(BaseModel):
     employee_count: int | None = Field(default=None, ge=0)
     established_year: int | None = Field(default=None, ge=1900, le=2100)
     preferences: CompanyPreferences | None = None
+    reminder_email_enabled: bool | None = None
+    reminder_lead_days: list[int] | None = Field(default=None, max_length=5)
     onboarding_completed: bool | None = None
+
+    @field_validator("reminder_lead_days")
+    @classmethod
+    def normalize_reminder_lead_days(cls, value: list[int] | None) -> list[int] | None:
+        if value is None:
+            return None
+        days = sorted({int(day) for day in value if 1 <= int(day) <= 90}, reverse=True)
+        return days or [7, 3, 1]
 
     @field_validator("turnover_currency")
     @classmethod

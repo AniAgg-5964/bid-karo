@@ -12,6 +12,7 @@ class DashboardMetrics(BaseModel):
     upcoming_deadlines: int = 0
     evidence_documents: int = 0
     pending_changes: int = 0
+    pending_reminders: int = 0
 
 
 class PriorityAction(BaseModel):

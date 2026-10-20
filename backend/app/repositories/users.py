@@ -59,3 +59,9 @@ class UserRepository:
 
     def count_for_company(self, company_id: str) -> int:
         return self.collection.count_documents({"company_id": company_id})
+
+    def list_for_company(self, company_id: str) -> list[dict]:
+        cursor = self.collection.find(
+            {"company_id": company_id, "is_active": True}
+        ).sort("created_at", 1)
+        return [with_id(item) for item in cursor]

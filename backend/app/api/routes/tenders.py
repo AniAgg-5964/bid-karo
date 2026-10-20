@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.core.database import Database, get_database
 from app.core.dependencies import get_current_company
 from app.models.dashboard import TenderDetail, TenderListResponse
+from app.repositories.tender_documents import TenderDocumentRepository
 from app.repositories.tenders import TenderRepository
 from app.services.dashboard_service import DashboardService
 
@@ -34,4 +35,7 @@ def get_tender(
     tender = TenderRepository(db).find_for_company(tender_id, company["id"])
     if not tender:
         raise HTTPException(status_code=404, detail="Tender not found.")
+    tender["document_count"] = TenderDocumentRepository(db).count_for_tender(
+        company["id"], tender_id
+    )
     return TenderDetail.model_validate(tender)

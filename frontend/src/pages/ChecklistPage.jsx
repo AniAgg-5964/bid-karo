@@ -1,7 +1,14 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { CalendarClock, ClipboardCheck, ListChecks, TriangleAlert } from "lucide-react";
+import {
+  CalendarClock,
+  CalendarPlus,
+  ClipboardCheck,
+  ExternalLink,
+  ListChecks,
+  TriangleAlert,
+} from "lucide-react";
 
 import { api } from "../lib/api";
 import { currentLocale } from "../i18n";
@@ -13,7 +20,7 @@ import { Skeleton } from "../components/ui/Spinner";
 import { Button } from "../components/ui/Button";
 import { Select } from "../components/ui/Field";
 import { useToast } from "../contexts/ToastContext";
-import { cn, formatDate } from "../lib/utils";
+import { cn, formatDate, formatDateTime } from "../lib/utils";
 
 const OPEN_STATUSES = ["missing", "incomplete", "needs_verification", "in_progress"];
 const TASK_STATUSES = [
@@ -52,6 +59,16 @@ export function ChecklistPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const exportCalendar = async () => {
+    try {
+      await api.download("/calendar.ics", "bidkaro-calendar.ics");
+    } catch (err) {
+      toast.error(
+        err.message === "NETWORK_ERROR" ? t("errors.network") : err.message || t("errors.generic"),
+      );
+    }
+  };
+
   const updateStatus = async (item, status) => {
     setBusyId(item.id);
     try {
@@ -75,9 +92,20 @@ export function ChecklistPage() {
         title={t("checklist.title")}
         description={t("checklist.subtitle")}
         actions={
-          <Button variant="outline" size="sm" onClick={load} loading={loading && Boolean(items.length)}>
-            {t("common.refresh")}
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={load}
+              loading={loading && Boolean(items.length)}
+            >
+              {t("common.refresh")}
+            </Button>
+            <Button size="sm" onClick={exportCalendar}>
+              <CalendarPlus className="h-3.5 w-3.5" />
+              {t("checklist.exportCalendar")}
+            </Button>
+          </>
         }
       />
 
@@ -136,6 +164,11 @@ export function ChecklistPage() {
                             })}
                           </Badge>
                         ) : null}
+                        <Badge tone={item.phase === "post_award" ? "teal" : "neutral"}>
+                          {item.phase === "post_award"
+                            ? t("checklist.postAward")
+                            : t("checklist.preAward")}
+                        </Badge>
                         <span className="inline-flex items-center gap-1.5">
                           <CalendarClock className="h-3.5 w-3.5" />
                           {item.due_at
@@ -144,7 +177,9 @@ export function ChecklistPage() {
                         </span>
                         {item.tender_id ? (
                           <Link
-                            to={`/app/tenders/${item.tender_id}?tab=tasks`}
+                            to={`/app/tenders/${item.tender_id}?tab=${
+                              item.phase === "post_award" ? "obligations" : "tasks"
+                            }`}
                             className="font-semibold text-teal-700 hover:text-teal-900 dark:text-teal-300"
                           >
                             {t("tenders.open")}
@@ -208,7 +243,23 @@ export function ChecklistPage() {
                   {item.clause_reference
                     ? ` · ${t("tenders.requirements.clause", { ref: item.clause_reference })}`
                     : ""}
+                  {item.source_retrieved_at
+                    ? ` · ${t("tenders.requirements.retrieved", {
+                        date: formatDateTime(item.source_retrieved_at, currentLocale()),
+                      })}`
+                    : ""}
                 </p>
+                {item.source_url ? (
+                  <a
+                    href={item.source_url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline dark:text-teal-300"
+                  >
+                    {t("tenders.requirements.source")}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                ) : null}
               </CardContent>
             </Card>
           ))}

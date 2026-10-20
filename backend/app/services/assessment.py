@@ -35,6 +35,22 @@ from app.services.relevance import score_tender
 GATING_CATEGORIES = {"eligibility", "technical", "financial"}
 CHECKLIST_CATEGORIES = {"submission", "compliance"}
 OPEN_TASK_STATUSES = {"missing", "incomplete", "needs_verification", "in_progress"}
+POST_AWARD_MARKERS = (
+    "during the contract",
+    "during the contract period",
+    "after award",
+    "after the award",
+    "commencement of work",
+    "commencement of the contract",
+    "completion of work",
+    "completion of the contract",
+    "defect liability",
+    "warranty",
+    "maintenance period",
+    "post-award",
+    "post award",
+    "after the contract",
+)
 
 TOKEN_RE = re.compile(r"[a-z0-9]+")
 
@@ -158,6 +174,34 @@ def _requirement_text(requirement: dict) -> str:
         str(requirement.get(field) or "")
         for field in ("title", "obligation", "excerpt")
     )
+
+
+def _is_post_award(requirement: dict) -> bool:
+    if requirement.get("category") == "performance":
+        return True
+    text = _normalize(
+        " ".join(
+            str(requirement.get(field) or "")
+            for field in ("title", "obligation", "excerpt", "deadline_text", "consequence_text")
+        )
+    )
+    return any(marker in text for marker in POST_AWARD_MARKERS)
+
+
+def _post_award_trigger_type(requirement: dict) -> str:
+    text = _normalize(
+        " ".join(
+            str(requirement.get(field) or "")
+            for field in ("title", "obligation", "excerpt", "deadline_text")
+        )
+    )
+    if any(marker in text for marker in ("after award", "after the award", "post-award", "post award")):
+        return "after_award"
+    if any(marker in text for marker in ("commencement", "during the contract", "during the contract period")):
+        return "during_contract"
+    if any(marker in text for marker in ("completion", "defect liability", "warranty", "maintenance")):
+        return "after_completion"
+    return "during_contract"
 
 
 def _document_tokens(document: dict) -> set[str]:
@@ -685,6 +729,8 @@ class AssessmentService:
         skipped = 0
 
         for requirement in requirements:
+            if _is_post_award(requirement):
+                continue
             if not (
                 requirement.get("mandatory") == "yes"
                 or requirement.get("category") in CHECKLIST_CATEGORIES
@@ -725,6 +771,8 @@ class AssessmentService:
                 "requirement_id": requirement["id"],
                 "title": requirement.get("title") or "Untitled requirement",
                 "category": requirement.get("category") or "other",
+                "phase": "pre_award",
+                "trigger_type": "before_submission",
                 "action": requirement.get("obligation") or "",
                 "acceptance_criteria": requirement.get("excerpt") or "",
                 "evidence_check": evidence_check,
@@ -739,6 +787,7 @@ class AssessmentService:
                 "clause_reference": requirement.get("clause_reference"),
                 "excerpt": requirement.get("excerpt") or "",
                 "source_url": requirement.get("source_url"),
+                "source_retrieved_at": requirement.get("document_retrieved_at"),
                 "status": "in_progress" if confirmed else "missing",
                 "owner": None,
                 "due_at": due_at,
@@ -759,9 +808,81 @@ class AssessmentService:
         )
         return created, skipped, len(created) + skipped
 
-    def list_tasks(self, *, tender_id: str, company_id: str) -> tuple[list[dict], int]:
+    def generate_obligations(
+        self, *, tender_id: str, company: dict, user_id: str
+    ) -> tuple[list[dict], int, int]:
+        tender = self._tender(tender_id, company["id"])
+        requirements = self._requirements(company["id"], tender_id)
+        documents = self._company_documents(company["id"])
+        evidence_map = self.evidence.find_for_requirements(
+            [item["id"] for item in requirements], company["id"]
+        )
+        documents_by_id = {item["id"]: item for item in documents}
+        created: list[dict] = []
+        skipped = 0
+
+        for requirement in requirements:
+            if not _is_post_award(requirement):
+                continue
+            decision = evidence_map.get(requirement["id"])
+            confirmed = None
+            if decision and decision.get("status") == "confirmed":
+                confirmed = documents_by_id.get(decision.get("document_id"))
+            evidence_check = "No company evidence confirmed for this obligation."
+            if confirmed:
+                evidence_check = f"Confirmed evidence: {confirmed.get('title')}"
+                if confirmed.get("expiry_date"):
+                    evidence_check += f" (expires {_as_date(confirmed['expiry_date'])})"
+            values = {
+                "company_id": company["id"],
+                "tender_id": tender_id,
+                "requirement_id": requirement["id"],
+                "title": requirement.get("title") or "Untitled obligation",
+                "category": requirement.get("category") or "other",
+                "phase": "post_award",
+                "trigger_type": _post_award_trigger_type(requirement),
+                "action": requirement.get("obligation") or "",
+                "acceptance_criteria": requirement.get("excerpt") or "",
+                "evidence_check": evidence_check,
+                "issuer": tender.get("authority"),
+                "signatory": None,
+                "deadline_text": requirement.get("deadline_text"),
+                "trigger": requirement.get("deadline_text"),
+                "consequence": requirement.get("consequence_text"),
+                "source_document_title": requirement.get("document_title"),
+                "page_index": int(requirement.get("page_index") or 1),
+                "printed_page": requirement.get("printed_page"),
+                "clause_reference": requirement.get("clause_reference"),
+                "excerpt": requirement.get("excerpt") or "",
+                "source_url": requirement.get("source_url"),
+                "source_retrieved_at": requirement.get("document_retrieved_at"),
+                "status": "in_progress" if confirmed else "missing",
+                "owner": None,
+                "due_at": None,
+            }
+            task, was_created = self.checklist.create_generated(values)
+            if was_created:
+                created.append(task)
+            else:
+                skipped += 1
+
+        self.audit.log(
+            company_id=company["id"],
+            actor_user_id=user_id,
+            action="obligations.generated",
+            entity_type="tender",
+            entity_id=tender_id,
+            metadata={"created": len(created), "skipped": skipped},
+        )
+        return created, skipped, len(created) + skipped
+
+    def list_tasks(
+        self, *, tender_id: str, company_id: str, phase: str | None = None
+    ) -> tuple[list[dict], int]:
         self._tender(tender_id, company_id)
-        return self.checklist.list_for_tender(company_id, tender_id, limit=300)
+        return self.checklist.list_for_tender(
+            company_id, tender_id, limit=300, offset=0, phase=phase
+        )
 
     def update_task(
         self, *, task_id: str, company_id: str, user_id: str, changes: dict

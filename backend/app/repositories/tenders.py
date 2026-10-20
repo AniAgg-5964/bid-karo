@@ -40,6 +40,14 @@ class TenderRepository:
     def find_for_company(self, tender_id: str, company_id: str) -> dict | None:
         return with_id(self.collection.find_one({"_id": tender_id, "company_id": company_id}))
 
+    def update_for_company(self, tender_id: str, company_id: str, changes: dict) -> dict | None:
+        if changes:
+            self.collection.update_one(
+                {"_id": tender_id, "company_id": company_id},
+                {"$set": {**changes, "updated_at": utcnow()}},
+            )
+        return self.find_for_company(tender_id, company_id)
+
     def count_active(self, company_id: str) -> int:
         return self.collection.count_documents(
             {"company_id": company_id, "status": {"$in": ["saved", "preparing", "submitted"]}}
@@ -73,8 +81,19 @@ class ChecklistRepository:
     def __init__(self, db: Database) -> None:
         self.collection = db.checklist_tasks
 
-    def list_for_company(self, company_id: str, limit: int = 100, offset: int = 0) -> tuple[list[dict], int]:
-        query = {"company_id": company_id}
+    def list_for_company(
+        self,
+        company_id: str,
+        limit: int = 100,
+        offset: int = 0,
+        *,
+        phase: str | None = None,
+    ) -> tuple[list[dict], int]:
+        query: dict = {"company_id": company_id}
+        if phase == "pre_award":
+            query["$or"] = [{"phase": "pre_award"}, {"phase": {"$exists": False}}]
+        elif phase:
+            query["phase"] = phase
         total = self.collection.count_documents(query)
         cursor = (
             self.collection.find(query)
@@ -113,9 +132,19 @@ class ChecklistRepository:
         )
 
     def list_for_tender(
-        self, company_id: str, tender_id: str, limit: int = 200, offset: int = 0
+        self,
+        company_id: str,
+        tender_id: str,
+        limit: int = 200,
+        offset: int = 0,
+        *,
+        phase: str | None = None,
     ) -> tuple[list[dict], int]:
-        query = {"company_id": company_id, "tender_id": tender_id}
+        query: dict = {"company_id": company_id, "tender_id": tender_id}
+        if phase == "pre_award":
+            query["$or"] = [{"phase": "pre_award"}, {"phase": {"$exists": False}}]
+        elif phase:
+            query["phase"] = phase
         total = self.collection.count_documents(query)
         cursor = (
             self.collection.find(query)
@@ -126,21 +155,30 @@ class ChecklistRepository:
         return [with_id(item) for item in cursor], total
 
     def find_for_requirement(
-        self, company_id: str, tender_id: str, requirement_id: str
+        self,
+        company_id: str,
+        tender_id: str,
+        requirement_id: str,
+        *,
+        phase: str | None = None,
     ) -> dict | None:
-        return with_id(
-            self.collection.find_one(
-                {
-                    "company_id": company_id,
-                    "tender_id": tender_id,
-                    "requirement_id": requirement_id,
-                }
-            )
-        )
+        query = {
+            "company_id": company_id,
+            "tender_id": tender_id,
+            "requirement_id": requirement_id,
+        }
+        if phase == "pre_award":
+            query["$or"] = [{"phase": "pre_award"}, {"phase": {"$exists": False}}]
+        elif phase:
+            query["phase"] = phase
+        return with_id(self.collection.find_one(query))
 
     def create_generated(self, values: dict) -> tuple[dict, bool]:
         existing = self.find_for_requirement(
-            values["company_id"], values["tender_id"], values["requirement_id"]
+            values["company_id"],
+            values["tender_id"],
+            values["requirement_id"],
+            phase=values.get("phase", "pre_award"),
         )
         if existing:
             return existing, False
@@ -174,22 +212,4 @@ class ChecklistRepository:
         )
 
 
-class ChangeRepository:
-    def __init__(self, db: Database) -> None:
-        self.collection = db.changes
 
-    def list_for_company(self, company_id: str, limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
-        query = {"company_id": company_id}
-        total = self.collection.count_documents(query)
-        cursor = (
-            self.collection.find(query)
-            .sort("detected_at", -1)
-            .skip(max(offset, 0))
-            .limit(min(max(limit, 1), 200))
-        )
-        return [with_id(item) for item in cursor], total
-
-    def count_pending(self, company_id: str) -> int:
-        return self.collection.count_documents(
-            {"company_id": company_id, "review_status": {"$in": ["pending", "needs_review"]}}
-        )

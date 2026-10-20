@@ -1,40 +1,69 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BellRing, TriangleAlert } from "lucide-react";
 
 import { api } from "../lib/api";
-import { currentLocale } from "../i18n";
+import { useToast } from "../contexts/ToastContext";
 import { PageHeader } from "../components/ui/PageHeader";
+import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card, CardContent } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
-import { StatusBadge } from "../components/ui/Badge";
 import { Skeleton } from "../components/ui/Spinner";
-import { formatDate } from "../lib/utils";
+import { ChangeRow } from "../components/tender/TenderChangesPanel";
+import { cn } from "../lib/utils";
 
 export function ChangesPage() {
   const { t } = useTranslation();
+  const toast = useToast();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [busyId, setBusyId] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const data = await api.get("/changes");
+      const data = await api.get("/changes?limit=200");
       setItems(data.items || []);
     } catch (err) {
-      setError(err.message === "NETWORK_ERROR" ? t("errors.network") : err.message || t("errors.generic"));
+      setError(
+        err.message === "NETWORK_ERROR" ? t("errors.network") : err.message || t("errors.generic"),
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [load]);
+
+  const review = async (change, reviewStatus) => {
+    setBusyId(change.id);
+    try {
+      const updated = await api.patch(`/changes/${change.id}/review`, {
+        review_status: reviewStatus,
+      });
+      setItems((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      toast.success(
+        reviewStatus === "acknowledged"
+          ? t("changes.acknowledged")
+          : t("changes.dismissed"),
+      );
+    } catch (err) {
+      toast.error(
+        err.message === "NETWORK_ERROR" ? t("errors.network") : err.message || t("errors.generic"),
+      );
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const pending = items.filter((item) => item.review_status === "pending");
+  const visible = filter === "pending" ? pending : items;
 
   return (
     <div className="space-y-6">
@@ -60,31 +89,47 @@ export function ChangesPage() {
         </div>
       ) : null}
 
+      <div className="flex flex-wrap items-center gap-2">
+        {[
+          ["all", t("changes.filterAll")],
+          ["pending", t("changes.filterPending")],
+        ].map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setFilter(key)}
+            className={cn(
+              "rounded-lg px-3 py-1.5 text-xs font-semibold transition",
+              filter === key
+                ? "bg-teal-50 text-teal-800 dark:bg-teal-950 dark:text-teal-200"
+                : "text-navy-500 hover:bg-navy-50 dark:hover:bg-navy-800",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+        <Badge tone={pending.length ? "amber" : "neutral"}>
+          {pending.length
+            ? t("changes.pendingCount", { count: pending.length })
+            : t("changes.noPending")}
+        </Badge>
+      </div>
+
       {loading ? (
         <div className="space-y-2">
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-28 w-full" />
         </div>
-      ) : items.length ? (
+      ) : visible.length ? (
         <div className="space-y-2">
-          {items.map((item) => (
-            <Card key={item.id}>
-              <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex min-w-0 items-start gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                    <BellRing className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-navy-900 dark:text-white">{item.summary}</p>
-                    <p className="mt-1 text-xs muted">{formatDate(item.detected_at, currentLocale())}</p>
-                  </div>
-                </div>
-                <StatusBadge
-                  status={item.review_status}
-                  label={t(`status.${item.review_status}`, { defaultValue: item.review_status })}
-                />
-              </CardContent>
-            </Card>
+          {visible.map((item) => (
+            <ChangeRow
+              key={item.id}
+              change={item}
+              onReview={review}
+              busy={busyId === item.id}
+              showTender
+            />
           ))}
         </div>
       ) : (

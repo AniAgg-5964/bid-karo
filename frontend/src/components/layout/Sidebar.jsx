@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
+  AlarmClock,
   BellRing,
   Building2,
   ChevronRight,
@@ -22,6 +23,7 @@ const PRIMARY_NAV = [
   { key: "checklist", to: "/app/checklist", icon: ClipboardCheck },
   { key: "documents", to: "/app/documents", icon: FileText },
   { key: "changes", to: "/app/changes", icon: BellRing },
+  { key: "reminders", to: "/app/reminders", icon: AlarmClock },
 ];
 
 const ACCOUNT_NAV = [

@@ -35,6 +35,8 @@ class CompanyRepository:
                 "max_value": None,
             },
             "onboarding_completed": False,
+            "reminder_email_enabled": False,
+            "reminder_lead_days": [7, 3, 1],
             "created_at": now,
             "updated_at": now,
         }
@@ -43,6 +45,10 @@ class CompanyRepository:
 
     def find_by_id(self, company_id: str) -> dict | None:
         return with_id(self.collection.find_one({"_id": company_id}))
+
+    def list_all(self, limit: int = 500) -> list[dict]:
+        cursor = self.collection.find({}).limit(min(max(limit, 1), 5000))
+        return [with_id(item) for item in cursor]
 
     def delete(self, company_id: str) -> None:
         self.collection.delete_one({"_id": company_id})

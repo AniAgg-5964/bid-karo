@@ -88,9 +88,13 @@ class FakeEmailService:
 
     def __init__(self) -> None:
         self.codes: dict[tuple[str, str], str] = {}
+        self.reminders: list[dict] = []
 
     def send_otp(self, *, to: str, code: str, purpose: str, expires_minutes: int) -> None:
         self.codes[(to.lower(), purpose)] = code
+
+    def send_reminder(self, *, to: str, title: str, body: str) -> None:
+        self.reminders.append({"to": to, "title": title, "body": body})
 
     def code_for(self, email: str, purpose: str) -> str:
         return self.codes[(email.lower(), purpose)]

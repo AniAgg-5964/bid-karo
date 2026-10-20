@@ -1,6 +1,6 @@
 ﻿from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.core.database import Database, get_database
 from app.core.dependencies import get_current_company, get_current_user
@@ -88,11 +88,12 @@ def list_legal_obligations(
 @router.get("/tenders/{tender_id}/checklist", response_model=ChecklistTaskListResponse)
 def list_tender_checklist(
     tender_id: str,
+    phase: str | None = Query(default=None, pattern="^(pre_award|post_award)$"),
     company: dict = Depends(get_current_company),
     db: Database = Depends(get_database),
 ) -> ChecklistTaskListResponse:
     items, total = AssessmentService(db).list_tasks(
-        tender_id=tender_id, company_id=company["id"]
+        tender_id=tender_id, company_id=company["id"], phase=phase
     )
     return ChecklistTaskListResponse(
         items=[ChecklistTaskOut.model_validate(item) for item in items], total=total
@@ -119,6 +120,47 @@ def generate_tender_checklist(
         items=[ChecklistTaskOut.model_validate(item) for item in created],
         message=(
             f"Created {len(created)} tender-specific checklist tasks"
+            + (f"; {skipped} already existed." if skipped else ".")
+        ),
+    )
+
+
+@router.get(
+    "/tenders/{tender_id}/obligations", response_model=ChecklistTaskListResponse
+)
+def list_post_award_obligations(
+    tender_id: str,
+    company: dict = Depends(get_current_company),
+    db: Database = Depends(get_database),
+) -> ChecklistTaskListResponse:
+    items, total = AssessmentService(db).list_tasks(
+        tender_id=tender_id, company_id=company["id"], phase="post_award"
+    )
+    return ChecklistTaskListResponse(
+        items=[ChecklistTaskOut.model_validate(item) for item in items], total=total
+    )
+
+
+@router.post(
+    "/tenders/{tender_id}/obligations/generate",
+    response_model=ChecklistGenerateResponse,
+)
+def generate_post_award_obligations(
+    tender_id: str,
+    user: dict = Depends(get_current_user),
+    company: dict = Depends(get_current_company),
+    db: Database = Depends(get_database),
+) -> ChecklistGenerateResponse:
+    created, skipped, total = AssessmentService(db).generate_obligations(
+        tender_id=tender_id, company=company, user_id=user["id"]
+    )
+    return ChecklistGenerateResponse(
+        created=len(created),
+        skipped=skipped,
+        total=total,
+        items=[ChecklistTaskOut.model_validate(item) for item in created],
+        message=(
+            f"Created {len(created)} cited post-award obligations"
             + (f"; {skipped} already existed." if skipped else ".")
         ),
     )
