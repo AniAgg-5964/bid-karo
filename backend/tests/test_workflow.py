@@ -339,6 +339,43 @@ def test_workflow_is_tenant_scoped(
     assert denied_reminder.status_code == 404
 
 
+def test_changed_deadline_reopens_a_reviewed_reminder(
+    client: TestClient,
+    database: Database,
+    auth_headers: dict[str, str],
+    company_id: str,
+    tender: dict,
+) -> None:
+    first_deadline = utcnow() + timedelta(days=5)
+    TenderRepository(database).update_for_company(
+        tender["id"], company_id, {"deadline": first_deadline}
+    )
+    company = client.get("/api/companies/me", headers=auth_headers).json()
+    company["reminder_lead_days"] = [1]
+
+    service = ReminderService(database)
+    service.sync(company)
+    reminder = ReminderRepository(database).find_by_key(
+        company_id, f"tender:{tender['id']}:deadline:1"
+    )
+    assert reminder is not None
+    assert reminder["status"] == "pending"
+
+    ReminderRepository(database).update_status(reminder["id"], company_id, "acknowledged")
+    second_deadline = first_deadline + timedelta(days=4)
+    TenderRepository(database).update_for_company(
+        tender["id"], company_id, {"deadline": second_deadline}
+    )
+    service.sync(company)
+    reopened = ReminderRepository(database).find_by_key(
+        company_id, f"tender:{tender['id']}:deadline:1"
+    )
+    assert reopened is not None
+    assert reopened["status"] == "pending"
+    expected_due = second_deadline - timedelta(days=1)
+    assert abs((reopened["due_at"] - expected_due).total_seconds()) < 1
+
+
 def test_reminder_email_reports_missing_smtp_honestly(
     client: TestClient,
     database: Database,

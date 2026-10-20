@@ -1,0 +1,79 @@
+1
+00:00:00,780 --> 00:00:07,780
+BidKaro: tender discovery, cited requirements and compliance workflow.
+
+2
+00:00:08,043 --> 00:00:15,043
+Signing in to a local demo workspace with demo data.
+
+3
+00:00:15,753 --> 00:00:22,753
+Dashboard numbers come only from stored records, never from sample metrics.
+
+4
+00:00:23,046 --> 00:00:30,046
+Discovery runs a live TinyFish search built from your company profile.
+
+5
+00:00:30,339 --> 00:00:37,339
+Saved tenders. The first one is a clearly labelled synthetic sample.
+
+6
+00:00:37,682 --> 00:00:44,682
+Overview shows the source, the retrieval time and the sample badge.
+
+7
+00:00:44,921 --> 00:00:51,921
+Every requirement keeps its document, page, clause and verbatim excerpt.
+
+8
+00:00:52,230 --> 00:00:59,230
+Documents hold the RFP with page text, printed labels and OCR flags.
+
+9
+00:00:59,557 --> 00:01:06,557
+Suitability is a deterministic score with every weight and reason shown.
+
+10
+00:01:06,729 --> 00:01:13,729
+Eligibility stays separate, and unknown is never a pass.
+
+11
+00:01:13,969 --> 00:01:20,969
+Checklist tasks are tender-specific with acceptance criteria and a citation.
+
+12
+00:01:21,468 --> 00:01:28,468
+Legal clauses are cited summaries, not legal advice.
+
+13
+00:01:28,664 --> 00:01:35,664
+A baseline snapshot lets a later source recheck be diffed.
+
+14
+00:01:35,851 --> 00:01:42,851
+Post-award obligations come only from cited performance clauses.
+
+15
+00:01:43,047 --> 00:01:50,047
+Reminders come from stored deadlines and tasks. Email needs SMTP.
+
+16
+00:01:50,235 --> 00:01:57,235
+Three real changes were detected after a TinyFish recheck of a live source.
+
+17
+00:01:58,652 --> 00:02:05,652
+Acknowledging stores the human decision and audits it.
+
+18
+00:02:06,509 --> 00:02:13,509
+Calendar export is an authenticated ICS file, with no calendar OAuth.
+
+19
+00:02:14,330 --> 00:02:21,330
+Email reminders are opt-in and lead days are configurable.
+
+20
+00:02:21,553 --> 00:02:29,553
+Only real TinyFish data and labelled synthetic data. No bid is submitted.

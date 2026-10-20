@@ -35,6 +35,12 @@ def _fold(line: str) -> str:
     return "\r\n".join(chunk.decode("utf-8") for chunk in chunks)
 
 
+def _retrieved_text(value) -> str:
+    if isinstance(value, datetime):
+        return _utc(value).isoformat()
+    return "not recorded"
+
+
 def _utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
@@ -125,6 +131,7 @@ class CalendarService:
                 f"Authority: {tender.get('authority') or 'not stated'}\n"
                 f"Reference: {tender.get('reference_number') or 'not stated'}\n"
                 f"Source: {tender.get('source_url') or 'not recorded'}\n"
+                f"Source retrieved: {_retrieved_text(tender.get('source_retrieved_at'))}\n"
                 "Deadline from the recorded source. Confirm details on the official portal."
             )
             events.append(
@@ -149,6 +156,12 @@ class CalendarService:
             citation.append(f"Page: {task['page_index']}")
         if task.get("clause_reference"):
             citation.append(f"Clause: {task['clause_reference']}")
+        if task.get("source_url"):
+            citation.append(f"Source: {task['source_url']}")
+        if task.get("source_retrieved_at"):
+            citation.append(
+                f"Source retrieved: {_retrieved_text(task['source_retrieved_at'])}"
+            )
         if task.get("excerpt"):
             citation.append(f"Source excerpt: {task['excerpt']}")
         description = (

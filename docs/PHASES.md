@@ -9,8 +9,8 @@ Each phase is committed separately. A phase is complete only when its acceptance
 | 2 | Real TinyFish discovery and retrieval, tender ingestion, document collection, deduplication | Complete for discovery, retrieval, ingestion and deduplication |
 | 3 | Tender PDFs, page-level text extraction, cited requirements, deterministic citation validation, document/requirement UI | Complete, including an English OCR fallback for scanned pages |
 | 4 | Deterministic suitability score, eligibility, evidence matching, checklist, legal clauses | Complete |
-| 5 | Tasks, reminders, snapshots, change detection, calendar/export, post-award obligations | Not started |
-| 6 | Integration, polish, security review, full tests, docs, demo, known limitations | Not started |
+| 5 | Tasks, reminders, snapshots, change detection, calendar/export, post-award obligations | Complete |
+| 6 | Integration, polish, security review, full tests, docs, demo, known limitations | Complete for a local review build; hosting is out of scope |
 
 ## Phase 0 exit criteria
 
@@ -91,7 +91,38 @@ Known limitations: OCR supports English only; Tesseract must be installed and is
 
 Phase 4 verification on 2026-10-20: backend `pytest` 81 passed; frontend `npm test` 19 passed; `npm run build` succeeded. Live checks against the saved synthetic tender returned a deterministic score of 35 (weak/insufficient data), 18 mandatory eligibility items all correctly `Unknown`, 11 cited legal/contract obligations, and 33 tender-specific checklist tasks. The demo account stayed password-only with email treated as verified. A live registration attempt without `SMTP_APP_PASSWORD` returned the documented `503` and did not fabricate an email.
 
-Known limitations: Phase 4 scoring judges fit and compliance readiness, not legal eligibility. Evidence matching is token/type based and only as good as the company document metadata and the human decisions. Checklist generation does not invent owners or consequences. Phase 5 change tracking, snapshots, reminders and calendar export are not implemented.
+Known limitations: Phase 4 scoring judges fit and compliance readiness, not legal eligibility. Evidence matching is token/type based and only as good as the company document metadata and the human decisions. Checklist generation does not invent owners or consequences.
+
+## Phase 5 exit criteria
+
+- Snapshots store normalized tender fields plus requirement fingerprints and a content hash covering both. Full PDF copies are not duplicated into snapshot rows.
+- Snapshot capture and source rechecks are user-triggered. A recheck fetches the recorded source URL through TinyFish, updates only fields the fetched page supports and then captures a new snapshot.
+- Diffs are deterministic. Added, removed and changed tender fields are reviewable, as are requirement-set changes (a re-extraction that adds, removes or rewrites a stored requirement). Human review status is excluded so approving a requirement is not reported as a source change.
+- A failed source fetch never fabricates a deletion or a change. The API returns the actual fetch error and the tender keeps its previous snapshot.
+- Every detected change records old value, new value, detected time and source URL, and can be `pending`, `acknowledged` or `dismissed`. Reviews are audited.
+- Reminders are generated deterministically from tender deadlines and dated checklist tasks, deduplicated by a stable key, and preserve human acknowledgement unless the underlying due date changes. A changed deadline re-opens the reminder.
+- Reminders are in-app. Email delivery is a separate cron-able script (`scripts/send-reminders.py`) using the existing Gmail SMTP configuration. It defaults to a dry run, can be run with `--apply`, and exits non-zero with an honest message when `SMTP_APP_PASSWORD` is missing.
+- Calendar export is ICS only, authenticated and tenant-scoped. Date-only deadlines are emitted as all-day events. There is no Google Calendar OAuth.
+- Post-award obligations are generated only from cited performance/contract requirements. They keep document, page, clause, excerpt, source URL and retrieval time. Pre-award checklist tasks and post-award obligations are separate phases; tasks created before this phase are treated as `pre_award` without a destructive migration.
+- The workspace exposes a Changes tab per tender, a global Changes page, a Reminders page, a post-award tab, phase badges on the checklist and ICS export controls in English and Hindi.
+
+Phase 5 verification on 2026-10-20: backend `pytest` 92 passed; frontend `npm test` 19 passed; `npm run build` succeeded. The seeded synthetic tender returns 21 verified, source-cited requirements, 15 pre-award tasks, 5 cited post-award obligations, 6 active reminders and a baseline snapshot. Its deterministic assessment is score 74 / moderate with eligibility `unknown` (6 pass, 1 unknown, 0 fail). Both ICS endpoints returned `200` with parseable calendars. A live TinyFish recheck of a real saved tender created a new snapshot and three reviewable field changes. `scripts/send-reminders.py` listed due work in dry-run mode and, with no `SMTP_APP_PASSWORD`, exited with code 2 without claiming an email was sent. Tenant-isolation tests cover changes, snapshots, obligations, ICS and reminder review.
+
+Known limitations: rechecks are manual; there is no background polling. A source recheck updates tender fields but does not re-run AI requirement extraction, so requirement-level changes appear only after a deliberate re-extraction. Change review does not yet auto-link a changed deadline to every affected task. Email reminders require an external scheduler and a configured Google App Password. Atlas DNS was unavailable during this phase, so live verification used local MongoDB.
+
+## Phase 6 exit criteria
+
+- Full backend and frontend suites pass and the production frontend build succeeds.
+- English and Hindi cover every referenced UI key; missing-key output is not shipped.
+- Security review covers tenant scoping, unauthenticated access, input validation, response headers and honest error states. No secrets are committed.
+- Documentation reflects the implemented system, including the local-only demo path and remaining limitations.
+- A deterministic demo seed uses only the clearly labelled synthetic tender and synthetic evidence; it never presents sample data as an official tender.
+- A captioned walkthrough is recorded for local review, with narration where local text-to-speech is available and a captioned silent video otherwise.
+- Hosting, custom domains, paid email infrastructure and a production scheduler remain out of scope.
+
+Phase 6 verification on 2026-10-20: backend `pytest` 92 passed; frontend `npm test` 22 passed; `npm run build` succeeded. A key-coverage script found zero missing English or Hindi keys among referenced `t()` keys. Conservative security headers were added and tested. The manual browser pass covered login, dashboard, tender overview, Requirements, Documents, Suitability, Eligibility, Checklist, Legal, Changes, Tasks, Post-award, Reminders, Settings and both ICS downloads. Demo steps and video notes live in `demo/README.md`.
+
+Known limitations: the review build is local only. There is no hosting, no background scheduler, no Google Calendar OAuth, no live OTP or reminder email without `SMTP_APP_PASSWORD`, and no claim of legal eligibility or autonomous bid submission.
 
 ## Later-phase guardrails
 

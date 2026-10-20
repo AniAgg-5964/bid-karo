@@ -50,6 +50,8 @@ Indexes: `(email, purpose, created_at)` and TTL on `expires_at`.
 | `turnover_currency` | string | default `INR` |
 | `preferences` | object | sectors, regions, keywords, value range |
 | `onboarding_completed` | bool | |
+| `reminder_email_enabled` | bool | opt-in for the cron-able reminder email job |
+| `reminder_lead_days` | int[] | deadline lead days, default `[7, 3, 1]` |
 | `created_at`, `updated_at` | datetime | |
 
 Indexes: `name`; later a text index for search.
@@ -181,18 +183,35 @@ Indexes: unique `(company_id, tender_id)`.
 
 ### `checklist_tasks`
 
-Tender-specific actions with `company_id`, `tender_id`, `requirement_id`, `title`, `category`, `action`, `acceptance_criteria`, `evidence_check`, `issuer`, `signatory`, `deadline_text`, `trigger`, `consequence`, `source_document_title`, `page_index`, `printed_page`, `clause_reference`, `excerpt`, `source_url`, `status`, `owner`, `due_at`, timestamps.
+Tender-specific actions with `company_id`, `tender_id`, `requirement_id`, `title`, `category`, `phase` (`pre_award` or `post_award`), `trigger_type`, `action`, `acceptance_criteria`, `evidence_check`, `issuer`, `signatory`, `deadline_text`, `trigger`, `consequence`, `source_document_title`, `page_index`, `printed_page`, `clause_reference`, `excerpt`, `source_url`, `source_retrieved_at`, `status`, `owner`, `due_at`, timestamps.
+
+Tasks created before Phase 5 have no `phase`; queries treat them as `pre_award` via an `$or` condition, so no destructive migration is needed.
 
 Indexes: `(company_id, due_at)`, `(company_id, tender_id, requirement_id)`.
 
-## Planned Phase 5 collections
+## Phase 5 collections
 
-| Collection | Purpose |
-| --- | --- |
-| `tender_snapshots` | source snapshots per retrieval/version |
-| `changes` | detected differences, affected requirements/tasks, review state |
-| `calendar_events` | user-approved external events or exports |
-| `reminders` | deduplicated deadline/expiry notifications |
+### `tender_snapshots`
+
+One row per captured version of a tender, not per PDF. Fields: `company_id`, `tender_id`, `source_url`, `content_hash`, `captured_at`, `source_retrieved_at`, `fields` (normalized title, authority, reference, deadline, description, source type, value, currency, location), `requirement_count` and `requirement_fingerprints` (`requirement_id`, `title`, `excerpt_key`, `verification_status`).
+
+The hash covers the normalized fields and the requirement identity/content. Human review status is stored for explainability but is excluded from the hash and from diffs.
+
+Index: `(company_id, tender_id, captured_at desc)`.
+
+### `changes`
+
+Deterministic differences between two snapshots: `company_id`, `tender_id`, `tender_title`, `field`, `old_value`, `new_value`, `summary`, `severity`, `review_status` (`pending`, `acknowledged`, `dismissed`), `from_snapshot_id`, `to_snapshot_id`, `source_url`, `detected_at`, `reviewed_at`, timestamps. The actor and action are recorded in `audit_logs`. Requirement-set changes use `field: requirements`.
+
+Indexes: `(company_id, detected_at desc)`, `(company_id, tender_id, detected_at desc)`.
+
+### `reminders`
+
+Derived, deduplicated notifications: `company_id`, `reminder_key`, `type` (`deadline`, `task`, `document_expiry`), `title`, `body`, `due_at`, `href`, `tender_id`, `task_id`, `document_id`, `lead_days`, `active`, `status` (`pending`, `acknowledged`, `dismissed`, `sent`, `cancelled`), `sent_at`, `last_attempt_at`, `last_error`, `attempts`, timestamps. `lead_days` is present only for deadline reminders whose source states a deadline.
+
+Indexes: unique `(company_id, reminder_key)`, `(company_id, status, due_at)`.
+
+Calendar export is generated on demand as ICS; no calendar collection or OAuth token is stored.
 
 ## Relationships
 
@@ -206,7 +225,8 @@ requirement 1---0..1 evidence_matches *---1 company_document
 tender  1---1 fit_assessments
 requirement 1---* checklist_tasks
 tender  1---* tender_snapshots 1---* changes
-checklist_task 1---* reminders / calendar_events
+tender  1---* reminders
+checklist_task 1---* reminders
 ```
 
 Each company-owned collection is always queried with `company_id`. Tender records may be shared candidates later, but company-specific assessments, matches, tasks and documents are isolated.
@@ -217,3 +237,4 @@ Each company-owned collection is always queried with `company_id`. Tender record
 - Compound indexes beginning with `company_id` for every tenant-owned collection.
 - Tender deduplication will use a stable source key plus reference number; unique indexes will be added only after deduplication rules are verified.
 - Historical assessments reference the tender version/snapshot used, so past results stay explainable after a corrigendum.
+- `changes` and `reminders` are queried by `company_id` first; reminders add a unique `(company_id, reminder_key)` index for idempotent generation.

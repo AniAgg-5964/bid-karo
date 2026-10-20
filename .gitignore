@@ -39,3 +39,6 @@ Thumbs.db
 # Test artifacts
 test-results/
 playwright-report/
+
+# Demo recording scratch space (raw video, frames, narration clips)
+demo/.recording/

@@ -135,8 +135,14 @@ class ReminderRepository:
             }
             update["active"] = True
             update["updated_at"] = now
-            if existing.get("status") == "cancelled":
+            # A changed deadline or task due date must re-open a reminder even if
+            # the previous one was acknowledged, dismissed or already emailed.
+            due_changed = existing.get("due_at") != values.get("due_at")
+            if existing.get("status") == "cancelled" or due_changed:
                 update["status"] = "pending"
+                update["sent_at"] = None
+                update["last_error"] = None
+                update["attempts"] = 0
             self.collection.update_one({"_id": existing["id"]}, {"$set": update})
             return self.find_by_key(values["company_id"], values["reminder_key"]) or existing
 

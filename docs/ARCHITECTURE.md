@@ -25,15 +25,18 @@ Routes validate input and enforce authentication. Services own business rules. R
 | `core` | Settings, MongoDB lifecycle, security primitives, dependencies |
 | `models` | Pydantic request/response contracts and shared enums |
 | `repositories` | Collection access, indexes, tenant-scoped queries |
-| `services` | Auth/OTP, company, documents, tender documents/PDF extraction/OCR, requirements, deterministic assessment, dashboard, audit, storage |
+| `services` | Auth/OTP, company, documents, tender documents/PDF extraction/OCR, requirements, deterministic assessment, workflow, reminders, dashboard, audit, storage |
 | `api/routes` | HTTP endpoints grouped by domain |
 | `integrations` | TinyFish, Groq and Gemini adapters |
 | `services/pdf_extraction.py` | Deterministic PyMuPDF page text and printed-label extraction, with English Tesseract OCR fallback |
 | `services/ocr.py` | Local Tesseract invocation, page rendering and OCR failure reporting |
-| `services/assessment.py` | Deterministic fit score, mandatory gate, evidence suggestions, checklist and legal-clause selection |
-| `services/email.py` | Gmail SMTP delivery for verification codes |
+| `services/assessment.py` | Deterministic fit score, mandatory gate, evidence suggestions, phase-aware checklist and legal-clause selection |
+| `services/workflow.py` | Snapshot capture, deterministic field/requirement diffs, TinyFish source rechecks and change review |
+| `services/reminders.py` | Deadline/task reminder generation, acknowledgement, due-email job and honest SMTP failure reporting |
+| `services/calendar.py` | Authenticated, tenant-scoped ICS export; no external calendar OAuth |
+| `services/email.py` | Gmail SMTP delivery for verification codes and reminder emails |
 
-Phase 4 assessment is implemented. Phase 5 modules (snapshots, change detection, reminders, calendar/export, post-award obligations) remain planned.
+Phases 4 and 5 are implemented. Reminders are in-app; email delivery is an external cron-able script rather than an in-process scheduler.
 
 ## Tenant isolation
 
@@ -76,6 +79,15 @@ The Phase 4 assessment is a deterministic projection of stored evidence, never a
 - the eligibility gate is evaluated separately from the soft score, and the API returns both with reasons.
 
 No result is labelled legally eligible, and the UI states that legal/contract content is a cited summary, not legal advice.
+
+## Workflow, reminders and export
+
+- `tender_snapshots` stores normalized tender fields plus requirement fingerprints. The content hash covers both, so re-extraction versions are detectable; PDFs are not copied into snapshots.
+- `changes` is produced by deterministic comparison. A human review status is not part of the comparison, so approving a requirement does not look like a source change.
+- A source recheck calls TinyFish for the recorded URL. If the fetch fails, the error is returned and no deletion or change is fabricated.
+- `reminders` is derived from stored deadlines and dated tasks. Generation is idempotent. A changed due date re-opens a previously acknowledged, dismissed or emailed reminder; a human acknowledgement is preserved while the due date is stable.
+- Email sending is not an in-process scheduler. `scripts/send-reminders.py` is cron-able, defaults to dry-run, and reports missing SMTP configuration instead of claiming success.
+- ICS exports are built from stored records, require authentication and include only the caller's company. There is no Google Calendar OAuth flow.
 
 ## Deterministic versus AI
 
@@ -123,6 +135,7 @@ AI may propose extracted fields, requirements, clause interpretations and concis
 - Signup and optional sign-in codes are 6 digits, HMAC-hashed at rest, single-use, expiring and rate-limited. Raw codes are never logged or returned by the API.
 - JWTs are signed with a server-side secret and expire.
 - CORS is restricted to configured origins.
+- API responses set `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` and a restrictive `Permissions-Policy`.
 - Uploads are type/size validated and downloaded only through authorized routes.
 - Secrets live in environment variables and never in frontend bundles.
 - Retrieved tender content is untrusted input; prompt construction must delimit it and must never let it change system rules.

@@ -11,8 +11,10 @@ The defining principle is simple: every tender-specific claim must be traceable 
 - **Phase 2 — live tender discovery:** complete. Profile-driven TinyFish search and page retrieval, deterministic deduplication, relevance scoring with reasons, source provenance, save/dismiss into the workspace.
 - **Phase 3 — tender documents and cited requirements:** complete. Upload-first PDF collection, PyMuPDF page text with printed labels, English Tesseract OCR for scanned pages, user-triggered Groq extraction, deterministic verbatim/page citation checks, requirement review and a Documents/Requirements workspace. OCR-derived citations are labelled and visually reviewable; OCR text alone cannot silently make a requirement verified.
 - **Phase 4 — deterministic assessment:** complete. A transparent soft-fit score, mandatory eligibility kept separate, human-confirmed evidence matching, tender-specific checklist tasks and cited legal/contract obligations.
+- **Phase 5 — workflow:** complete. Tender snapshots, deterministic change review, in-app reminders plus a cron-able email script, authenticated ICS export and cited post-award obligations.
+- **Phase 6 — local review build:** complete for local use. Hardening, full tests, documentation, a deterministic demo seed and a captioned walkthrough. Hosting is intentionally out of scope.
 - **Authentication hardening:** Gmail SMTP email verification at signup and optional 6-digit email sign-in codes for verified accounts. The existing demo account remains password-only.
-- Later phases are tracked in [`docs/PHASES.md`](docs/PHASES.md).
+- Phase details and verification records are in [`docs/PHASES.md`](docs/PHASES.md).
 
 ### What works now
 
@@ -30,7 +32,9 @@ The defining principle is simple: every tender-specific claim must be traceable 
 - Legal and contract obligations: extracted compliance/performance clauses with document, page and clause citations, explicitly labelled as summary, not legal advice.
 - Deterministic profile-fit relevance with visible reasons; saved tenders flow into the dashboard, recent activity and the 14-day deadline metric.
 - Dashboard metrics, priority actions, deadlines and recent activity derived from stored records only.
-- Honest states everywhere: discovery reports a missing API key or incomplete profile instead of showing sample tenders; scanned or OCR-read pages and blocked downloads are labelled; missing evidence is shown as Unknown, and Phase 5 change tracking/calendar remains explicitly unavailable.
+- Workflow: user-triggered source rechecks through TinyFish, versioned snapshots, deterministic field and requirement-set diffs, reviewable changes, reminders with lead days, and authenticated ICS export.
+- Post-award obligations: generated only from cited performance/contract requirements, kept separate from pre-award checklist tasks.
+- Honest states everywhere: discovery reports a missing API key or incomplete profile instead of showing sample tenders; scanned or OCR-read pages and blocked downloads are labelled; missing evidence is shown as Unknown; a failed recheck reports the real error without inventing a change; email reminders report missing SMTP configuration instead of claiming delivery.
 - English/Hindi and light/dark switches persist per user.
 
 The repository started empty. The product specification is `BidPilot_AI_Project_Workflow_and_Execution_Plan.docx` (kept outside the repository by the project owner). The UI direction follows the supplied BidKaro mockup screenshots.
@@ -226,6 +230,37 @@ Open a saved tender and use the **Suitability**, **Eligibility**, **Checklist** 
 
 The assessment persists a snapshot in `fit_assessments`, but each GET recomputes the score from current requirements, documents and decisions so the displayed value cannot drift from its inputs.
 
+## Workflow, reminders and calendar
+
+- **Changes:** open a saved tender and use **Changes** to capture a baseline snapshot or recheck the recorded source through TinyFish. Snapshots store normalized tender fields and requirement fingerprints, never duplicate PDFs. Diffs are deterministic and every change can be acknowledged or dismissed; reviews are audited.
+- **Rechecks do not invent data:** if TinyFish cannot fetch the source, the API returns the real error and the previous snapshot stays intact. A recheck updates tender fields; it does not run AI extraction again, so requirement-set changes appear after a deliberate re-extraction.
+- **Reminders:** generated from tender deadlines and dated checklist tasks. A changed deadline re-opens a reminder that was acknowledged, dismissed or emailed. Acknowledgements are preserved while the due date is stable.
+- **Email:** reminders are in-app by default. Email delivery is a cron-able script, not an in-process scheduler:
+
+  ```powershell
+  # Dry run: list due reminders without sending
+  .\backend\.venv\Scripts\python.exe scripts\send-reminders.py
+
+  # Send, only for companies that enabled email reminders in Settings
+  .\backend\.venv\Scripts\python.exe scripts\send-reminders.py --apply
+  ```
+
+  Without `SMTP_APP_PASSWORD` the script exits with code 2 and sends nothing.
+- **Calendar:** both `/api/tenders/{id}/calendar.ics` and `/api/calendar.ics` return authenticated, tenant-scoped ICS files. Date-only deadlines become all-day events. There is no Google Calendar OAuth.
+- **Post-award:** the tender's **Post-award** tab generates obligations only from cited performance/contract requirements. Pre-award tasks and post-award obligations stay separate.
+
+## Demo data and walkthrough
+
+`scripts/seed-demo.py` is deterministic and idempotent. It only reseeds the clearly labelled synthetic sample tender and marks the evidence library as synthetic demo evidence:
+
+```powershell
+$env:MONGODB_URI='mongodb://localhost:27017'
+$env:MONGODB_DB='bidkaro'
+.\backend\.venv\Scripts\python.exe scripts\seed-demo.py --email asha.phase1@example.com
+```
+
+It produces 21 verified source-cited requirements, 15 pre-award tasks, 5 cited post-award obligations, 6 active reminders, a baseline snapshot and a deterministic assessment (score 74 / moderate, eligibility `unknown`). The demo account is `asha.phase1@example.com` with the local password used by the project owner. See [`demo/README.md`](demo/README.md) for the walkthrough script and video notes.
+
 ## Tests
 
 ```powershell
@@ -237,7 +272,10 @@ pytest
 # Frontend
 cd frontend
 npm test
+npm run build
 ```
+
+Backend tests use `mongomock` and a fake email service; they need no live MongoDB, TinyFish or Gmail account. Current local result: 92 backend tests and 22 frontend tests pass, and the production build succeeds.
 
 ## Design constraints
 
@@ -250,6 +288,8 @@ npm test
 - Hard eligibility (`Pass` / `Fail` / `Unknown`) is separate from the Bid Suitability Score. A missing or unverified mandatory item is never a pass, and a high score never hides it.
 - Evidence suggestions are deterministic and never auto-pass; a human must confirm, contradict or reject.
 - Checklist tasks are generated from tender requirements and keep their source citation; no generic filler.
+- Reminder email delivery is external and opt-in; the app never pretends a background scheduler exists.
+- Calendar integration is ICS export only; there is no Google Calendar OAuth.
 - No paid service is required for local development. Tesseract is free and local; Gmail SMTP uses the project account's app password.
 
 ## Documentation
@@ -258,3 +298,4 @@ npm test
 - [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md)
 - [`docs/PHASES.md`](docs/PHASES.md)
 - [`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md)
+- [`demo/README.md`](demo/README.md)

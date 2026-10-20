@@ -195,11 +195,17 @@ export function TenderDetailPage() {
         </CardContent>
       </Card>
 
-      <div className="flex flex-wrap gap-1 rounded-xl border border-navy-100 bg-white p-1 dark:border-navy-800 dark:bg-navy-900">
+      <div
+        role="tablist"
+        aria-label={t("tenders.detail.sections")}
+        className="flex flex-wrap gap-1 rounded-xl border border-navy-100 bg-white p-1 dark:border-navy-800 dark:bg-navy-900"
+      >
         {TABS.map((tab) => (
           <button
             key={tab}
             type="button"
+            role="tab"
+            aria-selected={activeTab === tab}
             onClick={() => openTab(tab)}
             className={
               activeTab === tab
@@ -221,7 +227,7 @@ export function TenderDetailPage() {
             <CardContent className="space-y-4 pt-3">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wide text-navy-400">
-                  {t("dashboard.subtitle")}
+                  {t("tenders.detail.summaryLabel")}
                 </p>
                 <p className="mt-1 text-sm leading-6 text-navy-700 dark:text-navy-200">
                   {tender.description || t("tenders.noSummary")}
@@ -230,7 +236,7 @@ export function TenderDetailPage() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-xl bg-navy-50 p-3 dark:bg-navy-800">
                   <p className="text-[10px] font-bold uppercase tracking-wide text-navy-400">
-                    {t("documents.title")}
+                    {t("tenders.detail.documentsLabel")}
                   </p>
                   <p className="mt-1 text-lg font-semibold text-navy-900 dark:text-white">
                     {tender.document_count ?? 0}
@@ -255,10 +261,31 @@ export function TenderDetailPage() {
             <CardContent className="pt-3">
               <div className="rounded-xl border border-dashed border-navy-200 p-4 dark:border-navy-700">
                 <ShieldCheck className="h-5 w-5 text-teal-700" />
-                <p className="mt-2 text-sm leading-6 muted">{t("tenders.detail.sourceBody")}</p>
+                <p className="mt-2 text-sm leading-6 muted">
+                  {tender.source_url
+                    ? t("tenders.detail.sourceBody")
+                    : t(
+                        tender.is_sample
+                          ? "tenders.detail.sourceSample"
+                          : "tenders.detail.sourceNotRecorded",
+                      )}
+                </p>
+                {tender.source_url ? (
+                  <a
+                    href={tender.source_url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="mt-2 inline-flex items-center gap-1 break-all text-xs font-semibold text-teal-700 hover:underline dark:text-teal-300"
+                  >
+                    {t("tenders.detail.sourceLink")}
+                    <ExternalLink className="h-3 w-3 shrink-0" />
+                  </a>
+                ) : null}
                 {tender.source_retrieved_at ? (
                   <p className="mt-3 text-xs font-medium text-navy-700 dark:text-navy-200">
-                    {formatDateTime(tender.source_retrieved_at, currentLocale())}
+                    {t("tenders.requirements.retrieved", {
+                      date: formatDateTime(tender.source_retrieved_at, currentLocale()),
+                    })}
                   </p>
                 ) : null}
               </div>
@@ -292,8 +319,8 @@ export function TenderDetailPage() {
           <CardContent className="py-10">
             <EmptyState
               icon={FileText}
-              title={t("tenders.detail.pendingTitle")}
-              description={t("tenders.detail.pendingBody")}
+              title={t("tenders.detail.unavailableTitle")}
+              description={t("tenders.detail.unavailableBody")}
             />
           </CardContent>
         </Card>
