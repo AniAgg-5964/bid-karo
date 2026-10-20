@@ -22,7 +22,7 @@ import { Spinner } from "../components/ui/Spinner";
 import { useToast } from "../contexts/ToastContext";
 import { api, ApiError } from "../lib/api";
 import { cn, formatDate, formatDateTime, formatNumber } from "../lib/utils";
-import { fetchStatusTone, scorePercent, scoreTone, sortByRelevance, sourceTypeTone } from "../lib/discovery";
+import { fetchStatusTone, scorePercent, scoreTone, sortByRelevance, sourceKindTone, sourceTypeTone } from "../lib/discovery";
 
 function StatTile({ label, value }) {
   return (
@@ -35,6 +35,45 @@ function StatTile({ label, value }) {
 
 function formatValue(amount, currency) {
   return `${currency || "INR"} ${formatNumber(amount)}`;
+}
+
+const WHY_ROWS = [
+  ["skipped_no_work_match", "discover.why.noWorkMatch"],
+  ["skipped_no_work_description", "discover.why.noWorkDescription"],
+  ["skipped_no_deadline", "discover.why.noDeadline"],
+  ["skipped_closed", "discover.why.alreadyClosed"],
+  ["skipped_non_tender", "discover.why.indexPages"],
+  ["skipped_foreign", "discover.why.foreign"],
+  ["fetch_failed", "discover.why.notRetrievable"],
+];
+
+// When a run lists nothing, the user gets the real numbers instead of a
+// bare "no tenders found".
+function WhyNothingListed({ stats }) {
+  const { t } = useTranslation();
+  const rows = WHY_ROWS.map(([key, label]) => [label, stats?.[key] ?? 0]).filter(
+    ([, value]) => value > 0,
+  );
+  if (!rows.length) return null;
+  return (
+    <div className="rounded-xl border border-navy-100 bg-white p-4 dark:border-navy-800 dark:bg-navy-900">
+      <p className="text-sm font-semibold text-navy-900 dark:text-white">
+        {t("discover.why.title")}
+      </p>
+      <p className="mt-1 text-xs muted">{t("discover.why.body")}</p>
+      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+        {rows.map(([label, value]) => (
+          <li
+            key={label}
+            className="flex items-center justify-between gap-3 rounded-lg bg-navy-50 px-3 py-2 text-xs dark:bg-navy-800"
+          >
+            <span className="text-navy-700 dark:text-navy-200">{t(label)}</span>
+            <span className="font-semibold text-navy-900 dark:text-white">{value}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 function TenderCard({ item, locale, onSave, onDismiss, saving }) {
@@ -77,6 +116,12 @@ function TenderCard({ item, locale, onSave, onDismiss, saving }) {
               </Badge>
               {item.extracted_from === "listing_table" ? (
                 <Badge tone="blue">{t("discover.fromListing")}</Badge>
+              ) : null}
+              {item.extracted_from === "search_result" ? (
+                <Badge tone="amber">{t("discover.fromSearchResult")}</Badge>
+              ) : null}
+              {relevance.region_match ? (
+                <Badge tone="teal">{t("discover.inYourRegion")}</Badge>
               ) : null}
             </div>
             <h3 className="mt-2 text-base font-semibold leading-6 text-navy-900 dark:text-white">
@@ -195,7 +240,7 @@ export function DiscoverPage() {
     try {
       const [statusResponse, tenderResponse, runResponse, sourceResponse] = await Promise.all([
         api.get("/discovery/status"),
-        api.get("/discovery/tenders?min_score=0.3&limit=50"),
+        api.get("/discovery/tenders?limit=50"),
         api.get("/discovery/runs?limit=1"),
         api.get("/discovery/sources?limit=8"),
       ]);
@@ -352,8 +397,25 @@ export function DiscoverPage() {
             <StatTile label={t("discover.stats.fetched")} value={stats.fetched ?? 0} />
             <StatTile label={t("discover.stats.fetchFailed")} value={stats.fetch_failed ?? 0} />
             <StatTile label={t("discover.stats.nonTender")} value={stats.skipped_non_tender ?? 0} />
+            <StatTile label={t("discover.stats.rowsFound")} value={stats.rows_found ?? 0} />
+            <StatTile
+              label={t("discover.stats.fromSearchResults")}
+              value={stats.notices_from_search_results ?? 0}
+            />
+            <StatTile
+              label={t("discover.stats.noWorkMatch")}
+              value={stats.skipped_no_work_match ?? 0}
+            />
+            <StatTile
+              label={t("discover.stats.noWorkDescription")}
+              value={stats.skipped_no_work_description ?? 0}
+            />
+            <StatTile
+              label={t("discover.stats.noDeadline")}
+              value={stats.skipped_no_deadline ?? 0}
+            />
             <StatTile label={t("discover.stats.closed")} value={stats.skipped_closed ?? 0} />
-            <StatTile label={t("discover.stats.unverified")} value={stats.skipped_unverified ?? 0} />
+            <StatTile label={t("discover.stats.foreign")} value={stats.skipped_foreign ?? 0} />
             <StatTile label={t("discover.stats.fromListings")} value={stats.tenders_from_listings ?? 0} />
             <StatTile label={t("discover.stats.listed")} value={stats.listed ?? 0} />
           </CardContent>
@@ -391,11 +453,14 @@ export function DiscoverPage() {
             ))}
           </div>
         ) : (
-          <EmptyState
-            icon={runStats ? FileSearch : Sparkles}
-            title={t("discover.emptyTitle")}
-            description={runStats ? t("discover.emptyBody") : t("discover.emptyStored")}
-          />
+          <div className="space-y-4">
+            <EmptyState
+              icon={runStats ? FileSearch : Sparkles}
+              title={t("discover.emptyTitle")}
+              description={runStats ? t("discover.emptyBody") : t("discover.emptyStored")}
+            />
+            {runStats ? <WhyNothingListed stats={runStats} /> : null}
+          </div>
         )}
       </section>
 
@@ -415,8 +480,11 @@ export function DiscoverPage() {
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone={sourceTypeTone(source.source_type)}>
-                      {t(`discover.sourceType.${source.source_type}`)}
+                    <Badge tone={sourceKindTone(source.source_kind || source.source_type)}>
+                      {t(
+                        `discover.sourceKind.${source.source_kind || source.source_type}`,
+                        { defaultValue: t(`discover.sourceType.${source.source_type}`) },
+                      )}
                     </Badge>
                     <Badge tone="neutral">{t("discover.indexPage")}</Badge>
                   </div>

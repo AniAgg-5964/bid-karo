@@ -20,6 +20,15 @@ export function sourceTypeTone(sourceType) {
   return "neutral";
 }
 
+// The kind of page a source is: a national e-procurement portal, a government
+// body's own site, or a commercial aggregator.
+export function sourceKindTone(sourceKind) {
+  if (sourceKind === "official_portal") return "teal";
+  if (sourceKind === "authority") return "green";
+  if (sourceKind === "aggregator") return "blue";
+  return "neutral";
+}
+
 export function fetchStatusTone(status) {
   if (status === "fetched") return "green";
   if (status === "blocked") return "amber";
@@ -49,6 +58,10 @@ export function extractedRows(extracted = {}, formatValue = (amount) => String(a
 
 export function sortByRelevance(items = []) {
   return [...items].sort((a, b) => {
+    // A tender in one of the company's own regions comes first, then the
+    // strongest profile fit, then official sources.
+    const regionDelta = (b?.relevance?.region_match ? 1 : 0) - (a?.relevance?.region_match ? 1 : 0);
+    if (regionDelta !== 0) return regionDelta;
     const scoreDelta = (b?.relevance?.score ?? 0) - (a?.relevance?.score ?? 0);
     if (scoreDelta !== 0) return scoreDelta;
     const aOfficial = a?.source_type === "official" ? 1 : 0;

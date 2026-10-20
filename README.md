@@ -22,6 +22,8 @@ The defining principle is simple: every tender-specific claim must be traceable 
 - 4-step onboarding and an editable company profile (details, capabilities, tender preferences, completeness score).
 - Private evidence document library: upload (PDF/PNG/JPG, local storage), list/search/filter, download and delete.
 - Live tender discovery: queries built from the company profile, real TinyFish search and page fetch, official sources flagged, aggregator index pages filtered out, and each result carrying source URL, retrieval time and verbatim excerpts for every extracted field.
+- Discovery reading rules: a notice is read out of the search result, out of a table row (even when the table has no headings) or off the page itself. The closing date is read from a closing/submission word, a publish date is never used as the closing date, and an expired tender is never shown.
+- Discovery matching: a tender is listed when the work matches the company's services, sectors or keywords (plain text, with plural and word-order variants) and its closing date is still in the future. The region only decides the order. Every candidate that was not listed is counted with its reason.
 - Tender document workspace: attach a PDF by upload (primary) or attempt a direct public PDF download; page text and printed page labels are extracted with PyMuPDF; SHA-256 dedupe per tender. Pages without a text layer are OCR'd with local English Tesseract (bounded by page count and time), stored with `text_source: ocr`, and flagged for visual review. A PDF that still has no readable text is flagged rather than pretended to be readable.
 - User-triggered requirement extraction: Groq (or Gemini) proposes requirements in JSON, Pydantic validates every item, and deterministic code stores a requirement as `verified` only when its verbatim excerpt is found on the cited page. Mismatches are stored as `unverified` with a reason; nothing is silently dropped.
 - Requirement review: filter by category, verification state and mandatory flag; view the cited page text; mark requirements verified, rejected or needing review. Every review is audited.
@@ -275,7 +277,7 @@ npm test
 npm run build
 ```
 
-Backend tests use `mongomock` and a fake email service; they need no live MongoDB, TinyFish or Gmail account. Current local result: 92 backend tests and 22 frontend tests pass, and the production build succeeds.
+Backend tests use `mongomock` and a fake email service; they need no live MongoDB, TinyFish or Gmail account. Current local result: 106 backend tests and 22 frontend tests pass, and the production build succeeds.
 
 ## Design constraints
 

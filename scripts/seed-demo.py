@@ -81,8 +81,70 @@ DEMO_PREFERENCES = {
     "max_value": 500000000.0,
 }
 
+# A realistic road contractor profile. The profile is the only dictionary
+# discovery matches against, so a demo with one service and one region can
+# only ever find one kind of work in one state. This is demo data for the
+# seeded company, not an app default.
+FULL_DEMO_PROFILE = {
+    "legal_name": "Asha Infrastructure Private Limited",
+    "business_type": "private_limited",
+    "description": (
+        "Roads, bridges, highway maintenance and municipal civil works across "
+        "western and southern India for NHAI, state PWDs and urban development "
+        "authorities."
+    ),
+    "products_services": [
+        "Road construction",
+        "Bridge construction",
+        "Highway widening",
+        "Road resurfacing",
+        "PQC and bituminous roads",
+        "Earthwork and embankment",
+        "Storm water drains",
+        "Road safety and furniture",
+        "Toll plaza works",
+    ],
+    "sectors": ["Infrastructure", "Highways", "Civil works"],
+    "regions": ["Maharashtra", "Karnataka", "Goa", "Madhya Pradesh"],
+    "certifications": ["ISO 9001:2015", "ISO 14001:2015"],
+    "annual_turnover": 125000000.0,
+    "employee_count": 240,
+    "established_year": 2011,
+    "onboarding_completed": True,
+}
+FULL_DEMO_PREFERENCES = {
+    "sectors": ["Infrastructure", "Highways"],
+    "regions": ["Maharashtra", "Karnataka", "Goa", "Madhya Pradesh"],
+    "keywords": [
+        "highway maintenance",
+        "AMC",
+        "routine maintenance",
+        "NHAI",
+        "MSRDC",
+        "MMRDA",
+        "PWD",
+        "MIDC",
+    ],
+    "min_value": 1000000.0,
+    "max_value": 500000000.0,
+}
+
+
+def _is_thin_demo_profile(company: dict) -> bool:
+    """True while the company still carries the thin seeded demo profile."""
+    return (
+        len(company.get("products_services") or []) <= 1
+        and len(company.get("regions") or []) <= 1
+        and len((company.get("preferences") or {}).get("keywords") or []) <= 1
+    )
+
 
 def _profile_patch(company: dict) -> dict:
+    if _is_thin_demo_profile(company):
+        patch = dict(FULL_DEMO_PROFILE)
+        preferences = dict(FULL_DEMO_PREFERENCES)
+        patch["preferences"] = preferences
+        return patch
     patch = {
         key: value
         for key, value in DEMO_PROFILE.items()

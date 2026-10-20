@@ -30,6 +30,16 @@ OFFICIAL_HOSTS = {
     "mahatenders.gov.in",
 }
 
+# National e-procurement portals, where tender notices are actually published.
+# A government body's own site is a different kind of source (an authority).
+OFFICIAL_PORTAL_HOSTS = {
+    "eprocure.gov.in",
+    "gem.gov.in",
+    "ireps.gov.in",
+    "etenders.gov.in",
+    "mahatenders.gov.in",
+}
+
 # Drop only well-known tracking parameters when de-duplicating. Anything else in
 # the query string may identify the tender itself (e.g. eProcure's ``sp`` token).
 TRACKING_PARAMS = {
@@ -47,7 +57,7 @@ TRACKING_PARAMS = {
 LISTING_PATTERNS = (
     r"^\s*\d[\d,]*\s+.{0,100}?\btenders\b",
     r"^\s*latest\b.{0,80}?\btenders\b",
-    r"\btenders\s+in\s+(?:india|[a-z][a-z ]{2,30})\b",
+    r"\btenders\s+(?:in|from|of|for)\s+(?:india|[a-z][a-z ]{2,30})\b",
     r"\btender\s+notices\b",
     r"\blist\s+of\b.{0,60}?\btenders\b",
     r"\bbrowse\b.{0,40}?\btenders\b",
@@ -55,6 +65,7 @@ LISTING_PATTERNS = (
     r"^\s*tender\s+notices?\b(?!\s*(?:no\.?|number|ref)\b).{0,45}$",
     r"^\s*(?:e-?procurement|government\s+e-?procurement|eprocure|gem|mahatenders|ireps|etenders)\b",
     r"\btenders\b[^|]{0,40}\b20\d{2}\b",
+    r"\btenders\b\s*$",
 )
 
 INDIAN_STATES = (
@@ -75,6 +86,7 @@ _MONTHS = {
 
 _DATE_TOKEN = (
     r"(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}"
+    r"|\d{1,2}[-/.](?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*[-/.]\d{4}"
     r"|\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?,?\s+\d{4}"
     r"|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}"
     r"|\d{4}-\d{2}-\d{2})"
@@ -96,6 +108,95 @@ DEADLINE_LABELS = (
     "last date",
     "deadline",
 )
+
+# Words that mark a date as the *publishing* date rather than the closing date.
+# A publish date is never used as a closing date, otherwise an open tender would
+# be discarded because its notice was published weeks ago.
+PUBLISH_CONTEXT_LABELS = (
+    "published date",
+    "publish date",
+    "date of publication",
+    "published on",
+    "published",
+    "issue date",
+    "issued on",
+    "issued",
+    "opening date",
+    "opened on",
+    "opening",
+    "clarification start",
+    "tender published",
+    "released on",
+    "uploaded on",
+    "uploaded",
+)
+
+# Extra closing words that are common in short notices and table headers.
+CLOSING_CONTEXT_LABELS = DEADLINE_LABELS + (
+    "closing",
+    "close",
+    "submission end",
+    "submission ends",
+    "till",
+    "upto",
+    "up to",
+    "bid end date",
+    "bid end",
+)
+
+# Positive evidence that a notice is not an Indian tender. Only used when no
+# Indian marker is present, so an unknown notice is never dropped on a guess.
+FOREIGN_MARKERS = (
+    "united states",
+    "united kingdom",
+    "usa",
+    "u.s.a",
+    "uae",
+    "dubai",
+    "abu dhabi",
+    "singapore",
+    "saudi arabia",
+    "saudi",
+    "australia",
+    "canada",
+    "germany",
+    "france",
+    "italy",
+    "spain",
+    "netherlands",
+    "belgium",
+    "switzerland",
+    "qatar",
+    "kuwait",
+    "bahrain",
+    "oman",
+    "sri lanka",
+    "bangladesh",
+    "myanmar",
+    "south africa",
+    "nigeria",
+    "kenya",
+    "egypt",
+    "turkey",
+    "israel",
+    "iran",
+    "iraq",
+    "brazil",
+    "mexico",
+    "japan",
+    "south korea",
+    "china",
+    "hong kong",
+    "taiwan",
+    "malaysia",
+    "indonesia",
+    "philippines",
+    "thailand",
+    "vietnam",
+    "new zealand",
+)
+
+FOREIGN_CURRENCY_MARKERS = ("usd", "gbp", "eur", "aed", "sgd", "cad", "aud", "jpy")
 
 VALUE_LABELS = (
     "estimated cost",
@@ -306,8 +407,6 @@ def extract_table_rows(
 
         headers = _table_cells(block[0])
         close_idx = _column_index(headers, CLOSE_HEADERS, exclude=set())
-        if close_idx is None:
-            continue
         publish_idx = _column_index(
             headers, PUBLISH_HEADERS, exclude={close_idx} if close_idx is not None else set()
         )
@@ -316,7 +415,18 @@ def extract_table_rows(
             NAME_HEADERS,
             exclude={position for position in (close_idx, publish_idx) if position is not None},
         )
-        if name_idx is None:
+        if close_idx is None or name_idx is None:
+            # No usable headings. Many portals and aggregators publish their
+            # tables without column names, so each row is read positionally.
+            for raw_row in block[1:]:
+                cells = _table_cells(raw_row)
+                if _is_separator_row(cells):
+                    continue
+                inferred = infer_row_tender(cells, today=current_day)
+                if inferred:
+                    rows.append(inferred)
+                    if len(rows) >= max_rows:
+                        break
             continue
 
         for raw_row in block[1:]:
@@ -427,6 +537,13 @@ def parse_date_token(token: str) -> date | None:
         year = _expand_year(year)
         return _safe_date(year, month, day)
     # dd Mon yyyy
+    match = re.fullmatch(r"(\d{1,2})[-/.]([a-z]+)[-/.](\d{4})", token.lower())
+    if match:
+        day, month_name, year = match.groups()
+        month = _MONTHS.get(month_name)
+        if month:
+            return _safe_date(int(year), month, int(day))
+    # dd Mon yyyy
     match = re.fullmatch(r"(\d{1,2})\s+([a-z]+)\s+(\d{4})", token.lower())
     if match:
         day, month_name, year = match.groups()
@@ -446,6 +563,390 @@ def parse_date_token(token: str) -> date | None:
         year, month, day = (int(part) for part in match.groups())
         return _safe_date(year, month, day)
     return None
+
+
+# ---------------------------------------------------------------------------
+# Closing-date rules
+# ---------------------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class DateFacts:
+    """Closing and publish dates read out of a short piece of source text."""
+
+    deadline: date | None = None
+    published: date | None = None
+    deadline_raw: str | None = None
+    context: str = "unknown"  # how the closing date was identified
+
+
+def _date_tokens(text: str) -> list[tuple[int, str, date]]:
+    found: list[tuple[int, str, date]] = []
+    for match in re.finditer(_DATE_TOKEN, text, re.IGNORECASE):
+        parsed = parse_date_token(match.group(1))
+        if parsed:
+            found.append((match.start(), match.group(1), parsed))
+    return found
+
+
+def _date_context(text: str, index: int) -> str:
+    """Classify a date by the words immediately before it."""
+    window = text[max(0, index - 70) : index].lower()
+    best_kind = "unknown"
+    best_position = -1
+    for labels, kind in (
+        (PUBLISH_CONTEXT_LABELS, "publish"),
+        (CLOSING_CONTEXT_LABELS, "closing"),
+    ):
+        for label in labels:
+            position = window.rfind(label)
+            if position > best_position:
+                best_position = position
+                best_kind = kind
+    return best_kind
+
+
+def read_close_date(text: str, *, today: date | None = None) -> DateFacts:
+    """Read the closing date out of a short notice, row or snippet.
+
+    Rules, in order:
+
+    1. A date with a closing/submission word next to it is the closing date.
+    2. A date with a publish/open word next to it is never the closing date.
+    3. If no date has a closing word, the latest remaining date is used as the
+       closing date and the earlier one is kept as the publish date.
+    4. A notice that only states a publish date has no closing date at all.
+    """
+    current_day = today or date.today()
+    if not text:
+        return DateFacts()
+    tokens = _date_tokens(text)
+    if not tokens:
+        return DateFacts()
+
+    closing = [item for item in tokens if _date_context(text, item[0]) == "closing"]
+    published = [item for item in tokens if _date_context(text, item[0]) == "publish"]
+    unlabelled = [item for item in tokens if _date_context(text, item[0]) == "unknown"]
+
+    facts = DateFacts()
+    if closing:
+        _index, raw, parsed = closing[0]
+        facts.deadline = parsed
+        facts.deadline_raw = raw
+        facts.context = "closing"
+    elif unlabelled:
+        _index, raw, parsed = max(unlabelled, key=lambda item: item[2])
+        facts.deadline = parsed
+        facts.deadline_raw = raw
+        facts.context = "inferred"
+    if published:
+        facts.published = min(item[2] for item in published)
+    if facts.published is None and facts.deadline is not None:
+        earlier = [item[2] for item in tokens if item[2] < facts.deadline]
+        if earlier:
+            facts.published = min(earlier)
+    if facts.deadline is not None and facts.deadline < current_day:
+        # Expired. The caller decides what to do with it, but we never report an
+        # expired date as a usable closing date.
+        facts.context = f"{facts.context}:expired"
+    return facts
+
+
+def looks_like_single_notice(text: str) -> bool:
+    """True when the page states a closing date for a single work."""
+    if not text:
+        return False
+    lowered = text.lower()
+    return any(label in lowered for label in CLOSING_CONTEXT_LABELS)
+
+
+_GENERIC_TITLE_ENDINGS = ("tender", "tenders", "tender notice", "e-tender", "bid notice")
+
+# Section headings a page uses for its own data, never a description of work.
+_LABEL_PHRASE_STARTS = (
+    "tender opening",
+    "tender closing",
+    "tender date",
+    "tender amount",
+    "tender title",
+    "tender value",
+    "tender type",
+    "tender fee",
+    "bid opening",
+    "bid closing",
+    "bid submission",
+    "bid end",
+    "bid start",
+    "document download",
+    "download start",
+    "download end",
+    "opening date",
+    "closing date",
+    "last date",
+    "first date",
+    "published date",
+    "publish date",
+    "amended date",
+    "corrigendum",
+    "extension",
+    "e-tender",
+    "etender",
+)
+
+
+def _looks_like_label_phrase(text: str) -> bool:
+    """True for a section heading such as "Tender Opening Date"."""
+    lowered = normalize_text(text).lower().strip(" .:|-")
+    if not lowered:
+        return True
+    return lowered.startswith(_LABEL_PHRASE_STARTS)
+
+
+def is_generic_title(title: str) -> bool:
+    """True when a title names an authority or a portal, not a piece of work.
+
+    Aggregators publish many pages called "... Tender" or "Authority - Tender".
+    Those titles are useless on a card, so the work description has to come
+    from the page itself.
+    """
+    text = normalize_text(title).lower().strip(" .-|")
+    if not text:
+        return True
+    if _looks_like_label_phrase(text):
+        return True
+    words = text.split()
+    if len(words) <= 8:
+        for ending in _GENERIC_TITLE_ENDINGS:
+            if text.endswith(ending):
+                return True
+    if len(text) < 15:
+        return True
+    return False
+
+
+def work_name_from_text(text: str) -> str | None:
+    """Read a work description from the top of a page.
+
+    The first meaningful line of a notice is its title, e.g.
+    "Pune Road Surface Marking Project for Enhanced Safety".
+    """
+    if not text:
+        return None
+    for raw_line in text.splitlines():
+        line = _clean(raw_line).lstrip("#").strip()
+        if len(line) < 20 or len(line) > 200:
+            continue
+        if line.endswith(":"):
+            continue
+        if re.search(r"https?://", line, re.IGNORECASE):
+            continue
+        if _DATE_IN_CELL.search(line) and len(line) < 40:
+            continue
+        lowered = line.lower()
+        if any(
+            lowered.startswith(prefix)
+            for prefix in (
+                "tender no",
+                "tender reference",
+                "organisation",
+                "organization",
+                "department",
+                "authority",
+                "last date",
+                "closing date",
+                "bid submission",
+                "opening date",
+                "estimated cost",
+                "tender value",
+                "work location",
+            )
+        ):
+            continue
+        if any(label in lowered for label in DEADLINE_LABELS[:6]):
+            continue
+        if _looks_like_label_phrase(line):
+            continue
+        return line
+    return None
+
+
+def is_foreign_notice(text: str) -> bool:
+    """True only when the text positively points to a notice outside India."""
+    if not text:
+        return False
+    lowered = text.lower()
+    indian_markers = ("india", "inr", "lakh", "crore", "lakhs", "crores", "rupees")
+    indian_markers += INDIAN_STATES
+    if any(marker in lowered for marker in indian_markers):
+        return False
+    for marker in FOREIGN_MARKERS:
+        if re.search(rf"\b{re.escape(marker)}\b", lowered):
+            return True
+    for marker in FOREIGN_CURRENCY_MARKERS:
+        if re.search(rf"\b{re.escape(marker)}\b", lowered):
+            return True
+    return False
+
+
+def _looks_like_reference(cell: str) -> bool:
+    """A cell that is only an identifier, not a work description."""
+    cleaned = _clean(cell)
+    if not cleaned:
+        return False
+    if len(cleaned) > 40:
+        return False
+    digits = sum(character.isdigit() for character in cleaned)
+    if digits >= 6 and digits >= len(cleaned) * 0.5:
+        return True
+    return bool(_REFERENCE_CELL_RE.search(cleaned))
+
+
+_REFERENCE_CELL_RE = re.compile(
+    r"\b(?:tender|bid|nit|rfp|rfq|eoi)\s*(?:no|number|ref(?:erence)?)\b", re.IGNORECASE
+)
+
+
+def _looks_like_value(cell: str) -> bool:
+    return bool(re.search(VALUE_TOKEN, cell, re.IGNORECASE))
+
+
+def _looks_like_location(cell: str) -> bool:
+    """A cell that names a place rather than describing the work."""
+    lowered = cell.lower()
+    if "india" in lowered:
+        return True
+    return any(state in lowered for state in INDIAN_STATES)
+
+
+def infer_row_tender(cells: list[str], *, today: date | None = None) -> TableRowTender | None:
+    """Read one tender out of a table row that has no usable header.
+
+    Many aggregator and government tables are published without column headings.
+    The row is read positionally instead: the closing date is the latest date in
+    the row, the work description is the longest piece of text, and the
+    reference is the cell that is only an identifier.
+    """
+    current_day = today or date.today()
+    if len(cells) < 2:
+        return None
+
+    dated: list[tuple[int, date, str]] = []
+    for index, cell in enumerate(cells):
+        for match in _DATE_IN_CELL.finditer(cell):
+            parsed = parse_date_token(match.group(1))
+            if parsed:
+                dated.append((index, parsed, match.group(1)))
+    if not dated:
+        return None
+    future = [item for item in dated if item[1] >= current_day]
+    if not future:
+        return None
+    close_index, close_date, close_raw = max(future, key=lambda item: item[1])
+    published = min((item[1] for item in dated if item[1] < close_date), default=None)
+
+    name = ""
+    for index, cell in enumerate(cells):
+        if index == close_index:
+            continue
+        if _DATE_IN_CELL.search(cell):
+            continue
+        if _looks_like_reference(cell):
+            continue
+        if _looks_like_value(cell):
+            continue
+        if _looks_like_location(cell):
+            continue
+        if len(cell) > len(name):
+            name = cell
+    # A work description is a sentence, not a column heading.
+    if len(name) < 25 or _looks_like_label_phrase(name):
+        return None
+    return TableRowTender(
+        title=name[:400],
+        deadline=close_date.isoformat(),
+        deadline_raw=close_raw,
+        published=published.isoformat() if published else None,
+        excerpt=_clean(" | ".join(cells))[:400],
+    )
+
+
+@dataclass(slots=True)
+class SnippetNotice:
+    """One tender read out of a search result snippet."""
+
+    title: str
+    deadline: str | None
+    deadline_raw: str | None
+    published: str | None
+    reference_number: str | None
+    excerpt: str
+    context: str = "unknown"
+
+
+def notice_from_snippet(title: str, snippet: str, *, today: date | None = None) -> SnippetNotice | None:
+    """Read one tender out of a search result snippet.
+
+    A search result often describes a single notice even when the page it
+    points at is a category page. The work description is the text before the
+    closing date and the closing date follows the same rules as a table row.
+    """
+    current_day = today or date.today()
+    if not snippet:
+        return None
+    facts = read_close_date(snippet, today=current_day)
+    if facts.deadline is None or facts.deadline < current_day:
+        return None
+
+    # The work description is whatever precedes the closing date.
+    head = snippet
+    if facts.deadline_raw:
+        position = snippet.find(facts.deadline_raw)
+        if position > 0:
+            head = snippet[:position]
+    for separator in ("·", "|", "•"):
+        if separator in head:
+            head = head.split(separator, 1)[0]
+    # Drop the closing word itself, e.g. "... Under Ward No. 47. Closes".
+    head = re.sub(
+        r"\b(?:closing date|closes|close|due date|deadline|last date)\b\s*[:\-]?\s*$",
+        "",
+        head,
+        flags=re.IGNORECASE,
+    )
+    name = _clean(head).strip(" ,.;:-—–")
+    if len(name) < 15:
+        return None
+    if is_listing_page(name) or _looks_like_label_phrase(name):
+        # The snippet only describes a category or a section, not one work.
+        return None
+
+    reference = _extract_reference(snippet)
+    return SnippetNotice(
+        title=name[:400],
+        deadline=facts.deadline.isoformat(),
+        deadline_raw=facts.deadline_raw,
+        published=facts.published.isoformat() if facts.published else None,
+        reference_number=reference[0] if reference else None,
+        excerpt=_clean(snippet)[:400],
+        context=facts.context,
+    )
+
+
+def source_kind(url: str) -> str:
+    """Classify where a page comes from.
+
+    * ``official_portal`` - a national e-procurement portal.
+    * ``authority`` - a government body's own site.
+    * ``aggregator`` - a commercial third-party listing site.
+    """
+    host = _host(url)
+    if not host:
+        return "unknown"
+    if host in OFFICIAL_HOSTS or host in OFFICIAL_PORTAL_HOSTS:
+        return "official_portal"
+    if host.endswith(OFFICIAL_SUFFIXES):
+        return "authority"
+    return "aggregator"
 
 
 def _expand_year(year: int) -> int:

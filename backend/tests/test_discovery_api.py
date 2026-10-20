@@ -101,7 +101,9 @@ def test_discovery_run_lists_only_relevant_tenders(client: TestClient, auth_head
     payload = response.json()
 
     assert payload["run"]["status"] == "completed"
-    assert payload["run"]["stats"]["search_hits"] == 12  # 6 profile queries x 2 hits each
+    # Every declared term gets a turn, and the official portals are queried too.
+    assert payload["run"]["stats"]["queries"] >= 6
+    assert payload["run"]["stats"]["search_hits"] == payload["run"]["stats"]["queries"] * 2
     assert payload["run"]["stats"]["unique_candidates"] == 2
     assert payload["total"] >= 1
 
@@ -124,6 +126,7 @@ def test_discovery_run_lists_only_relevant_tenders(client: TestClient, auth_head
     # Queries are built from the profile and cover the declared region and India.
     assert any("highway" in q.lower() for q in fake.search_calls)
     assert any("maharashtra" in q.lower() for q in fake.search_calls)
+    assert any("site:etenders.gov.in" in q.lower() for q in fake.search_calls)
 
 
 def test_discovery_stored_listing_and_save_flow(client: TestClient, auth_headers: dict[str, str]):
@@ -373,7 +376,7 @@ def test_closed_and_unverified_pages_are_not_listed(
 
     assert payload["total"] == 1
     assert payload["run"]["stats"]["skipped_closed"] == 1
-    assert payload["run"]["stats"]["skipped_unverified"] == 1
+    assert payload["run"]["stats"]["skipped_no_deadline"] == 1
 
 
 def test_sources_endpoint_lists_portal_pages(client: TestClient, auth_headers: dict[str, str]):

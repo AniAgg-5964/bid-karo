@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 SourceType = Literal["official", "aggregator", "unknown"]
+SourceKind = Literal["official_portal", "authority", "aggregator", "unknown"]
 FetchStatus = Literal["not_fetched", "fetched", "blocked", "error"]
 TenderStatus = Literal["new", "saved", "dismissed"]
 
@@ -41,6 +42,12 @@ class Relevance(BaseModel):
     matched_terms: list[str] = Field(default_factory=list)
     reasons: list[str] = Field(default_factory=list)
     threshold: float = 0.0
+    # True when the work itself matches the company's services, sectors or
+    # keywords. This is the visibility gate: a tender that matches the work
+    # type is shown, and the region only decides the order.
+    work_type_match: bool = False
+    # True when the tender names one of the company's regions. This ranks.
+    region_match: bool = False
 
 
 class DiscoveredTender(BaseModel):
@@ -50,6 +57,7 @@ class DiscoveredTender(BaseModel):
     company_id: str
     source: str = "tinyfish"
     source_type: SourceType = "unknown"
+    source_kind: SourceKind = "unknown"
     source_url: str
     site_name: str = ""
     title: str
@@ -63,6 +71,16 @@ class DiscoveredTender(BaseModel):
     fetch_error: str | None = None
     is_listing_page: bool = False
     is_award_notice: bool = False
+    # True when this record is a tender the last run could list: one work, with
+    # a closing date in the future, matching the company's work types.
+    is_listed: bool = False
+    # Why the record was not listed, when it was not.
+    not_listed_reason: str | None = None
+    # True when the notice clearly belongs to a tender outside India.
+    is_foreign: bool = False
+    # False when the page names an authority or a portal but never describes a
+    # piece of work, so it is not a tender.
+    has_work_description: bool = True
     extracted_from: str | None = None
     parent_url: str | None = None
     content_excerpt: str | None = None
@@ -87,6 +105,13 @@ class DiscoveryStats(BaseModel):
     skipped_closed: int = 0
     skipped_unverified: int = 0
     tenders_from_listings: int = 0
+    # Phase 5 discovery rules
+    notices_from_search_results: int = 0
+    rows_found: int = 0
+    skipped_no_work_match: int = 0
+    skipped_no_deadline: int = 0
+    skipped_no_work_description: int = 0
+    skipped_foreign: int = 0
 
 
 class DiscoveryRun(BaseModel):

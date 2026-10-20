@@ -110,6 +110,27 @@ Phase 5 verification on 2026-10-20: backend `pytest` 92 passed; frontend `npm te
 
 Known limitations: rechecks are manual; there is no background polling. A source recheck updates tender fields but does not re-run AI requirement extraction, so requirement-level changes appear only after a deliberate re-extraction. Change review does not yet auto-link a changed deadline to every affected task. Email reminders require an external scheduler and a configured Google App Password. Atlas DNS was unavailable during this phase, so live verification used local MongoDB.
 
+## Discovery rework (Phase 5 follow-up, verified 2026-10-20)
+
+A live run had been listing zero tenders even though the search results already contained open, profile-matching notices. The causes were in the reading rules, not in the search:
+
+- a category page's title made the whole page a "listing", so the individual notice inside the search result was never read;
+- table rows without column headings were skipped, although they carry the reference and the closing date;
+- a page that stated a closing date was still treated as a listing when it also carried a small table;
+- the relevance gate needed two of three profile categories, so a road-construction tender outside the declared state scored below the line and was dropped;
+- a notice with no closing date was dropped silently.
+
+The rules now are:
+
+1. A tender is one piece of work with a closing date that is still in the future. Expired notices are never shown.
+2. The closing date is read from a closing/submission word. A date labelled publish/open is never used as the closing date, and in an unlabelled row the later date is the closing date.
+3. A notice inside a search result is a tender even when the page is a category page (`extracted_from: search_result`); a notice inside a table row is a tender (`extracted_from: listing_table`), and headerless tables are read positionally.
+4. The work must match the company's services, sectors or keywords, matched as plain text with deterministic variants (plural form, "B of A" word order). The region only decides the order. A bare keyword needs a region match as well.
+5. Notices outside India are not listed.
+6. Every candidate is counted with the reason it was not listed, and the Discover page shows those counts.
+
+Verification on 2026-10-20: backend `pytest` 106 passed (14 new discovery-rule tests); frontend `npm test` 22 passed; `npm run build` succeeded. A live run with the seeded company profile returned 12 queries, 116 search hits, 98 unique candidates, 22 tender rows read out of listing tables and **5 listed tenders with real work names, references and future closing dates** (previously 0). The same run reported 16 candidates that did not match the work types, 14 index pages, 3 pages that named no work, 1 closed tender, 1 notice without a closing date and 5 pages that could not be read. "Sources to check" keeps the aggregators and now types every entry as an official portal, a government body or a third-party aggregator.
+
 ## Phase 6 exit criteria
 
 - Full backend and frontend suites pass and the production frontend build succeeds.

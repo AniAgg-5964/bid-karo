@@ -34,7 +34,7 @@ from app.repositories.tenders import TenderRepository
 from app.services import tender_extraction as extraction
 from app.services.relevance import company_terms, has_any_terms, score_tender
 
-MAX_QUERIES = 6
+MAX_QUERIES = 12
 FETCH_BATCH = 10
 
 logger = logging.getLogger(__name__)
@@ -50,6 +50,29 @@ def _parse_iso(value: str | None) -> datetime | None:
     # Deadlines here are calendar dates with no stated time. Anchor them at noon UTC
     # so the same calendar day survives display in timezones such as IST (UTC+5:30).
     return datetime.combine(parsed, time(12, 0), tzinfo=timezone.utc)
+
+
+def _interleave(*groups: list[str]) -> list[str]:
+    """Alternate between groups so every kind of profile term gets a turn.
+
+    A company with five keywords and nine services must not spend the whole
+    query budget on keywords, and a company with only services must not lose
+    them to a keyword that happens to be listed first.
+    """
+    result: list[str] = []
+    lists = [list(group) for group in groups if group]
+    for index in range(max((len(group) for group in lists), default=0)):
+        for group in lists:
+            if index < len(group):
+                result.append(group[index])
+    seen: set[str] = set()
+    unique: list[str] = []
+    for item in result:
+        key = item.lower()
+        if key not in seen:
+            seen.add(key)
+            unique.append(item)
+    return unique
 
 
 class DiscoveryService:
@@ -80,10 +103,17 @@ class DiscoveryService:
 
     # ----------------------------------------------------------------- queries
     def build_queries(self, company: dict, keywords_override: str | None = None) -> list[str]:
+        """Build search queries from every part of the company profile.
+
+        Every service, sector, keyword and region the company declared gets a
+        turn, because the profile is the only dictionary the matcher has. The
+        official portals are queried as well, so notices from the source of
+        record are looked for directly.
+        """
         terms = company_terms(company)
-        regions = terms["regions"]
+        regions = terms["regions"][:3]
+        topics = _interleave(terms["keywords"], terms["capability"])[:5]
         region = regions[0].title() if regions else "India"
-        topics = terms["keywords"] + terms["capability"]
 
         queries: list[str] = []
         seen: set[str] = set()
@@ -91,7 +121,7 @@ class DiscoveryService:
         def add(query: str) -> None:
             cleaned = " ".join(query.split())
             key = cleaned.lower()
-            if cleaned and key not in seen:
+            if cleaned and key not in seen and len(queries) < MAX_QUERIES:
                 seen.add(key)
                 queries.append(cleaned)
 
@@ -100,19 +130,21 @@ class DiscoveryService:
             add(f"{override} tender {region}")
             add(f"{override} tender India")
 
+        # Different queries use different profile terms, so one narrow keyword
+        # cannot take the whole budget.
         for topic in topics[:2]:
-            add(f"{topic} tender {region}")
-            # Detail-page queries: these surface individual notices and e-tenders
-            # rather than portal index pages.
+            for candidate_region in regions[:2]:
+                add(f"{topic} tender {candidate_region.title()}")
+        for topic in topics[2:4]:
             add(f"{topic} tender notice closing date {region}")
-        for topic in topics:
+        for topic in topics[0:1] + topics[4:5]:
             add(f"{topic} tender {region} last date of submission")
-            if len(queries) >= MAX_QUERIES:
-                break
-        for topic in topics:
+        for topic in topics[1:2] + topics[2:3]:
             add(f"{topic} tender India")
-            if len(queries) >= MAX_QUERIES:
-                break
+        for topic in topics[:2]:
+            add(f"{topic} tender site:etenders.gov.in")
+        for topic in topics[1:2]:
+            add(f"{topic} tender site:eprocure.gov.in")
 
         return queries[:MAX_QUERIES]
 
@@ -167,6 +199,12 @@ class DiscoveryService:
             "skipped_low_relevance": 0,
             "skipped_non_tender": 0,
             "tenders_from_listings": 0,
+            "notices_from_search_results": 0,
+            "rows_found": 0,
+            "skipped_no_work_match": 0,
+            "skipped_no_deadline": 0,
+            "skipped_no_work_description": 0,
+            "skipped_foreign": 0,
         }
 
         stored: list[dict] = []
@@ -205,9 +243,12 @@ class DiscoveryService:
 
     @staticmethod
     def _sort_listed(items: list[dict]) -> list[dict]:
+        """Rank the listed tenders: the company's own regions first, then the
+        strongest profile fit, then official sources, then the closest date."""
         return sorted(
             items,
             key=lambda item: (
+                (item.get("relevance") or {}).get("region_match", False),
                 (item.get("relevance") or {}).get("score", 0),
                 item.get("source_type") == "official",
                 (item.get("extracted") or {}).get("deadline") or "",
@@ -287,16 +328,20 @@ class DiscoveryService:
                 threshold=threshold,
             )
             candidate["source_type"] = source_type
+            candidate["source_kind"] = extraction.source_kind(candidate["url"])
             candidate["pre_relevance"] = relevance
             scored.append((relevance.score, candidate))
 
         # Individual notice pages first, then official sources, then the
         # strongest profile fit. Portal roots are fetched last because they
         # rarely carry a single tender's deadline or reference.
-        def order_key(item: tuple[float, dict]) -> tuple[bool, bool, bool, float]:
+        def order_key(item: tuple[float, dict]) -> tuple[bool, bool, bool, bool, float]:
             score, candidate = item
             listing = extraction.is_listing_page(candidate["title"])
+            relevance = candidate.get("pre_relevance")
+            work_match = bool(relevance and relevance.work_type_match)
             return (
+                work_match,
                 extraction.is_detail_url(candidate["url"]) and not listing,
                 candidate["source_type"] == "official" and not listing,
                 not listing,
@@ -305,7 +350,12 @@ class DiscoveryService:
 
         scored.sort(key=order_key, reverse=True)
         ordered = [candidate for _score, candidate in scored]
-        stats["prequalified"] = sum(1 for score, _c in scored if score >= threshold)
+        stats["prequalified"] = sum(
+            1
+            for _score, candidate in scored
+            if (candidate.get("pre_relevance") or None)
+            and candidate["pre_relevance"].work_type_match
+        )
         return ordered
 
     def _fetch_and_store(
@@ -362,36 +412,76 @@ class DiscoveryService:
 
             title = candidate["title"] or page_title or candidate["url"]
             rows = extraction.extract_table_rows(text) if text else []
+            stats["rows_found"] += len(rows)
             is_award = extraction.is_award_notice(title, candidate["snippet"])
-            # A page that yields individual rows, whose title reads like an index,
-            # or that is mostly a dated table is a listing. It is kept for
-            # provenance but never listed, and its fields are never extracted as
-            # if the whole page were one tender.
-            is_listing = (
-                extraction.is_listing_page(title)
-                or bool(rows)
-                or extraction.has_many_dated_rows(text)
+            # A page is a listing when its title reads like a category, or when
+            # it is mostly a table of notices. A page that states a closing date
+            # for one work stays a single tender, even when it also carries a
+            # small table of its own.
+            title_is_listing = extraction.is_listing_page(title)
+            single_notice = extraction.looks_like_single_notice(
+                text or candidate["snippet"] or ""
             )
-            extracted = (
-                ExtractedTender()
-                if is_listing
-                else extraction.extract_fields(title, candidate["snippet"], text)
-            )
+            if title_is_listing:
+                is_listing = True
+            elif single_notice:
+                is_listing = False
+            else:
+                is_listing = bool(rows) or extraction.has_many_dated_rows(text)
+
+            # A search result often describes one notice even when the page it
+            # points at is a category page.
+            snippet_notice = extraction.notice_from_snippet(title, candidate["snippet"])
+
+            record_title = title
+            has_work_description = True
+            if fetch_status == "not_fetched" and snippet_notice and not is_listing:
+                # Without the page we only have the search result, so the work
+                # name is taken from the snippet rather than the page title.
+                record_title = snippet_notice.title
+            elif not is_listing and extraction.is_generic_title(record_title):
+                # Many aggregator pages are called "<Authority> Tender". The work
+                # description on the page itself is the useful title. When the
+                # page has no description either, it is not a tender.
+                from_page = extraction.work_name_from_text(text)
+                if from_page:
+                    record_title = from_page
+                else:
+                    has_work_description = False
+
+            if is_listing:
+                extracted = ExtractedTender()
+            else:
+                extracted = extraction.extract_fields(
+                    record_title, candidate["snippet"], text
+                )
+                if not extracted.deadline:
+                    facts = extraction.read_close_date(candidate["snippet"])
+                    if facts.deadline and facts.context in {"closing", "inferred"}:
+                        extracted.deadline = facts.deadline.isoformat()
+                        extracted.deadline_raw = facts.deadline_raw
+                        extracted.evidence["deadline"] = candidate["snippet"][:300]
+
             relevance = score_tender(
                 company,
-                title=title,
+                title=record_title,
                 snippet=candidate["snippet"],
                 text="" if is_listing else text,
                 location=extracted.location,
+                context=title,
                 threshold=min_score,
+            )
+            is_foreign = extraction.is_foreign_notice(
+                " ".join([record_title, candidate["snippet"], text[:2000]])
             )
 
             values = {
                 "source": "tinyfish",
                 "source_type": candidate["source_type"],
+                "source_kind": candidate.get("source_kind", "unknown"),
                 "source_url": candidate["url"],
                 "site_name": candidate["site_name"],
-                "title": title[:400],
+                "title": record_title[:400],
                 "snippet": candidate["snippet"][:1000],
                 "query": candidate["query"],
                 "retrieved_at": now,
@@ -402,6 +492,8 @@ class DiscoveryService:
                 "fetch_error": fetch_error,
                 "is_listing_page": is_listing,
                 "is_award_notice": is_award,
+                "is_foreign": is_foreign,
+                "has_work_description": has_work_description,
                 "content_excerpt": text[:4000] or None,
                 "content_hash": extraction.content_hash(text) if text else None,
             }
@@ -411,6 +503,13 @@ class DiscoveryService:
                 document, _created = self.tenders.upsert(company_id, key, values)
             stored[key] = document
 
+            if is_listing and snippet_notice:
+                notice_document = self._store_snippet_notice(
+                    company, candidate, snippet_notice, now, min_score, fetch_status
+                )
+                stored[notice_document["dedupe_key"]] = notice_document
+                stats["notices_from_search_results"] += 1
+
             for row in rows:
                 child = self._store_row(company, candidate, row, now, min_score)
                 stored[child["dedupe_key"]] = child
@@ -419,6 +518,71 @@ class DiscoveryService:
         unique_stored = list(stored.values())
         return unique_stored
 
+    def _store_snippet_notice(
+        self,
+        company: dict,
+        candidate: dict,
+        notice: extraction.SnippetNotice,
+        now: datetime,
+        min_score: float,
+        fetch_status: str,
+    ) -> dict:
+        """Store one tender that was read out of a search result.
+
+        The source URL stays the page the result pointed at, because that is
+        where the notice was seen. The record is marked ``search_result`` so the
+        user knows it was not read from the notice's own page.
+        """
+        extracted = ExtractedTender(
+            deadline=notice.deadline,
+            deadline_raw=notice.deadline_raw,
+            reference_number=notice.reference_number,
+            evidence={"deadline": notice.excerpt, "title": notice.excerpt},
+        )
+        # Anything else the notice states itself is taken from the same text.
+        details = extraction.extract_fields(notice.title, notice.excerpt, "")
+        extracted.authority = details.authority or None
+        extracted.value_amount = details.value_amount
+        extracted.value_currency = details.value_currency
+        extracted.value_raw = details.value_raw
+        extracted.location = details.location or None
+        for field in ("authority", "value", "location"):
+            if details.evidence.get(field):
+                extracted.evidence[field] = details.evidence[field][:300]
+        relevance = score_tender(
+            company,
+            title=notice.title,
+            snippet=notice.excerpt,
+            context=candidate.get("title") or "",
+            threshold=min_score,
+        )
+        values = {
+            "source": "tinyfish",
+            "source_type": candidate["source_type"],
+            "source_kind": candidate.get("source_kind", "unknown"),
+            "source_url": candidate["url"],
+            "site_name": candidate["site_name"],
+            "title": notice.title,
+            "snippet": notice.excerpt,
+            "query": candidate["query"],
+            "retrieved_at": now,
+            "published_hint": notice.published,
+            "extracted": extracted.model_dump(),
+            "relevance": relevance.model_dump(),
+            "fetch_status": fetch_status,
+            "fetch_error": None,
+            "is_listing_page": False,
+            "is_award_notice": extraction.is_award_notice(notice.title),
+            "is_foreign": extraction.is_foreign_notice(notice.excerpt),
+            "parent_url": candidate["url"],
+            "extracted_from": "search_result",
+            "content_excerpt": notice.excerpt,
+            "content_hash": extraction.content_hash(notice.excerpt),
+        }
+        key = extraction.row_dedupe_key(candidate["url"], notice.title)
+        document, _created = self.tenders.upsert(company["id"], key, values)
+        return document
+
     @staticmethod
     def _is_non_tender(item: dict) -> bool:
         return bool(item.get("is_listing_page") or item.get("is_award_notice"))
@@ -426,13 +590,20 @@ class DiscoveryService:
     def _qualify(
         self, stored: list[dict], min_score: float
     ) -> tuple[list[dict], list[dict], dict]:
-        """Split stored candidates into listed tenders, portal sources and counts.
+        """Split stored candidates into listed tenders, sources and counts.
 
-        A listed tender needs a profile-fit score at or above the threshold, must
-        not be an index/award page, must still have a closing date in the future
-        when one is known, and must carry at least a deadline or reference number.
-        Everything else is either reported as a portal source or counted as
-        skipped; nothing is silently promoted to a tender.
+        A tender is listed when all of these are true:
+
+        * it is one specific work, not an index page and not an award notice;
+        * the work matches the company's own work types (services, sectors or
+          keywords). The region only decides the order, not the visibility;
+        * a closing date was read from the source and that date is still in the
+          future. An expired tender is never shown, and a notice without a
+          closing date is not a tender;
+        * the notice is an Indian one.
+
+        Everything else is counted with its reason. Nothing is silently promoted
+        to a tender and nothing is silently dropped.
         """
         today = date.today().isoformat()
         listed: list[dict] = []
@@ -440,25 +611,45 @@ class DiscoveryService:
         closed = 0
         unverified = 0
         low = 0
+        no_work_match = 0
+        no_deadline = 0
+        no_description = 0
+        foreign = 0
         for item in stored:
             score = (item.get("relevance") or {}).get("score", 0)
-            if self._is_non_tender(item):
-                # Official portals are worth showing even at a lower profile fit.
-                if item.get("source_type") == "official" or score >= min_score:
-                    sources.append(item)
-                continue
-            if score < min_score:
-                low += 1
-                continue
+            relevance = item.get("relevance") or {}
             extracted = item.get("extracted") or {}
             deadline = extracted.get("deadline")
-            if deadline and deadline < today:
-                closed += 1
+
+            if item.get("is_foreign"):
+                foreign += 1
+                self._mark(item, listed=False, reason="foreign_notice")
                 continue
-            if not (deadline or extracted.get("reference_number")):
-                unverified += 1
+            if self._is_non_tender(item):
+                # Official portals and strong index pages are worth showing as
+                # places the user can check.
+                if item.get("source_type") == "official" or score >= min_score:
+                    sources.append(item)
+                self._mark(item, listed=False, reason="index_page")
+                continue
+            if not relevance.get("work_type_match"):
+                no_work_match += 1
+                self._mark(item, listed=False, reason="no_work_match")
+                continue
+            if item.get("has_work_description") is False:
+                no_description += 1
+                self._mark(item, listed=False, reason="no_work_description")
+                continue
+            if not deadline:
+                no_deadline += 1
+                self._mark(item, listed=False, reason="no_closing_date")
+                continue
+            if deadline < today:
+                closed += 1
+                self._mark(item, listed=False, reason="already_closed")
                 continue
             listed.append(item)
+            self._mark(item, listed=True, reason=None)
 
         sources.sort(
             key=lambda item: (
@@ -475,8 +666,20 @@ class DiscoveryService:
             "skipped_listing": sum(1 for item in sources if item.get("is_listing_page")),
             "skipped_closed": closed,
             "skipped_unverified": unverified,
+            "skipped_no_work_match": no_work_match,
+            "skipped_no_deadline": no_deadline,
+            "skipped_no_work_description": no_description,
+            "skipped_foreign": foreign,
         }
         return listed, sources[:8], counts
+
+    def _mark(self, item: dict, *, listed: bool, reason: str | None) -> None:
+        """Store the listing decision so the reason can be shown to the user."""
+        company_id = item.get("company_id")
+        tender_id = item.get("id")
+        if not company_id or not tender_id:
+            return
+        self.tenders.set_listing_state(company_id, tender_id, listed=listed, reason=reason)
 
     def _store_row(
         self,
@@ -502,6 +705,7 @@ class DiscoveryService:
         values = {
             "source": "tinyfish",
             "source_type": candidate["source_type"],
+            "source_kind": candidate.get("source_kind", "unknown"),
             "source_url": candidate["url"],
             "site_name": candidate["site_name"],
             "title": row.title,
@@ -515,6 +719,7 @@ class DiscoveryService:
             "fetch_error": None,
             "is_listing_page": False,
             "is_award_notice": extraction.is_award_notice(row.title),
+            "is_foreign": extraction.is_foreign_notice(f"{row.title} {row.excerpt}"),
             "parent_url": candidate["url"],
             "extracted_from": "listing_table",
             "content_excerpt": row.excerpt,
@@ -556,6 +761,7 @@ class DiscoveryService:
         statuses: list[str] | None = None,
         exclude_non_tender: bool = True,
         ready_only: bool = True,
+        listed_only: bool = True,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[dict], int]:
@@ -565,6 +771,7 @@ class DiscoveryService:
             statuses=statuses,
             exclude_non_tender=exclude_non_tender,
             ready_only=ready_only,
+            listed_only=listed_only,
             limit=limit,
             offset=offset,
         )

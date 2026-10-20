@@ -674,6 +674,12 @@
       "closed": "Closed tenders hidden",
       "unverified": "Pages without tender details",
       "fromListings": "Tenders from listings",
+      "rowsFound": "Tender rows found in tables",
+      "fromSearchResults": "Notices read from search results",
+      "noWorkMatch": "Not matching your work types",
+      "noWorkDescription": "Pages that name no work",
+      "noDeadline": "No closing date found",
+      "foreign": "Notices from outside India",
       "listed": "Listed"
     },
     "results": "Open tenders",
@@ -691,6 +697,12 @@
       "aggregator": "Aggregator",
       "unknown": "Unclassified source"
     },
+    "sourceKind": {
+      "official_portal": "Official e-procurement portal",
+      "authority": "Government body",
+      "aggregator": "Third-party aggregator",
+      "unknown": "Unclassified source"
+    },
     "fetchStatus": {
       "fetched": "Page read",
       "blocked": "Details blocked",
@@ -699,6 +711,19 @@
     },
     "relevance": "{{percent}}% profile fit",
     "fromListing": "From tender listing",
+    "fromSearchResult": "From search result - not opened yet",
+    "inYourRegion": "In your region",
+    "why": {
+      "title": "Why this run listed nothing",
+      "body": "Every candidate is counted with its reason. Nothing is dropped silently.",
+      "noWorkMatch": "Work did not match your services, sectors or keywords",
+      "noWorkDescription": "Pages that name an authority but no work",
+      "noDeadline": "No closing date found in the source",
+      "alreadyClosed": "Closing date had already passed",
+      "indexPages": "Category pages, kept as sources to check",
+      "foreign": "Notices from outside India",
+      "notRetrievable": "Pages that could not be read"
+    },
     "field": {
       "authority": "Authority",
       "reference_number": "Reference",

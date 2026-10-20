@@ -57,6 +57,21 @@ class DiscoveryTenderRepository:
             return with_id(existing), False
         return self.upsert(company_id, dedupe_key, values)
 
+    def set_listing_state(
+        self, company_id: str, tender_id: str, *, listed: bool, reason: str | None = None
+    ) -> None:
+        """Record whether the last run could list this record, and why not."""
+        self.collection.update_one(
+            {"_id": tender_id, "company_id": company_id},
+            {
+                "$set": {
+                    "is_listed": listed,
+                    "not_listed_reason": reason,
+                    "updated_at": utcnow(),
+                }
+            },
+        )
+
     def list_for_company(
         self,
         company_id: str,
@@ -65,6 +80,7 @@ class DiscoveryTenderRepository:
         statuses: list[str] | None = None,
         exclude_non_tender: bool = False,
         ready_only: bool = False,
+        listed_only: bool = False,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[dict], int]:
@@ -76,6 +92,8 @@ class DiscoveryTenderRepository:
         if exclude_non_tender:
             query["is_listing_page"] = {"$ne": True}
             query["is_award_notice"] = {"$ne": True}
+        if listed_only:
+            query["is_listed"] = True
         if ready_only:
             today = date.today().isoformat()
             query["$and"] = [
