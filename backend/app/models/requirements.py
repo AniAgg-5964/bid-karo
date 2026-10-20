@@ -8,6 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field
 DocumentKind = Literal["main", "corrigendum", "boq", "form", "other"]
 DocumentSource = Literal["uploaded", "downloaded"]
 DocumentStatus = Literal["extracted", "no_text_layer", "failed"]
+OcrStatus = Literal["disabled", "not_needed", "applied", "partial", "failed", "unavailable"]
+TextSource = Literal["text_layer", "ocr", "empty"]
 
 RequirementCategory = Literal[
     "eligibility",
@@ -50,6 +52,8 @@ class TenderDocumentOut(BaseModel):
     status: DocumentStatus
     page_count: int = 0
     text_page_count: int = 0
+    ocr_page_count: int = 0
+    ocr_status: OcrStatus = "disabled"
     truncated: bool = False
     error: str | None = None
     created_at: datetime
@@ -68,6 +72,7 @@ class TenderPageOut(BaseModel):
     printed_label: str
     char_count: int
     has_text: bool
+    text_source: TextSource = "text_layer"
 
 
 class TenderPageText(TenderPageOut):
@@ -94,6 +99,7 @@ class RequirementOut(BaseModel):
     excerpt: str
     page_index: int
     printed_page: str | None = None
+    text_source: TextSource = "text_layer"
     clause_reference: str | None = None
     form_reference: str | None = None
     mandatory: MandatoryFlag
@@ -101,6 +107,9 @@ class RequirementOut(BaseModel):
     consequence_text: str | None = None
     verification_status: RequirementVerification
     verification_notes: str | None = None
+    evidence_status: Literal["none", "suggested", "confirmed", "contradicted", "rejected"] = "none"
+    evidence_document_id: str | None = None
+    evidence_document_title: str | None = None
     document_title: str | None = None
     document_retrieved_at: datetime | None = None
     source_url: str | None = None
@@ -120,6 +129,7 @@ class RequirementSummary(BaseModel):
     total: int = 0
     verified: int = 0
     unverified: int = 0
+    needs_review: int = 0
     documents: int = 0
 
 
@@ -142,6 +152,7 @@ class RequirementExtractionResponse(BaseModel):
     invalid: int = 0
     verified: int = 0
     unverified: int = 0
+    needs_review: int = 0
     failed_chunks: int = 0
     model: str | None = None
     message: str

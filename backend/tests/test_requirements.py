@@ -138,7 +138,13 @@ def test_extraction_verifies_and_flags_citations(
         f"/api/tenders/{tender['id']}/requirements/summary", headers=auth_headers
     )
     assert summary.status_code == 200
-    assert summary.json() == {"total": 3, "verified": 1, "unverified": 2, "documents": 1}
+    assert summary.json() == {
+        "total": 3,
+        "verified": 1,
+        "unverified": 2,
+        "needs_review": 0,
+        "documents": 1,
+    }
 
 
 def test_rerun_is_idempotent_and_replace_resets(

@@ -17,9 +17,26 @@ IDs are UUID hex strings stored in `_id`. All timestamps are UTC. Company-owned 
 | `company_id` | string | tenant boundary |
 | `role` | string | `owner` initially |
 | `is_active` | bool | |
+| `email_verified` | bool | new accounts; legacy accounts default to true |
+| `otp_login_enabled` | bool | new accounts; legacy accounts default to false |
 | `created_at`, `updated_at` | datetime | |
 
 Indexes: unique `email`, `company_id`.
+
+### `otp_codes`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `_id` | string | UUID |
+| `email`, `purpose` | string | `verify_email` or `login` |
+| `user_id` | string? | account being verified when known |
+| `code_hash` | string | HMAC-SHA256 of the 6-digit code; raw code is never stored |
+| `attempts` | int | failed verification count |
+| `consumed_at` | datetime? | set when used or invalidated |
+| `expires_at` | datetime | TTL index removes expired rows |
+| `created_at` | datetime | |
+
+Indexes: `(email, purpose, created_at)` and TTL on `expires_at`.
 
 ### `companies`
 
@@ -103,6 +120,8 @@ Indexes: `(company_id, created_at)`, `(company_id, deadline)`.
 | `retrieved_at` | datetime | upload or download time |
 | `status` | string | `extracted`, `no_text_layer`, `failed` |
 | `page_count`, `text_page_count`, `truncated` | | extraction outcome |
+| `ocr_status` | string | `disabled`, `not_needed`, `applied`, `partial`, `failed`, `unavailable` |
+| `ocr_page_count` | int | pages successfully transcribed with OCR |
 | `error` | string? | e.g. password-protected or corrupt PDF |
 | `created_at`, `updated_at` | datetime | |
 
@@ -118,7 +137,8 @@ Indexes: `(company_id, tender_id, created_at)`, unique `(company_id, tender_id, 
 | `printed_label` | string | PDF label from PyMuPDF |
 | `text` | string | extracted text |
 | `char_count` | int | |
-| `has_text` | bool | false for image-only pages |
+| `has_text` | bool | false when neither text layer nor OCR produced text |
+| `text_source` | string | `text_layer`, `ocr` or `empty` |
 
 Indexes: unique `(document_id, page_index)`, `(company_id, tender_id)`.
 
@@ -133,6 +153,7 @@ Indexes: unique `(document_id, page_index)`, `(company_id, tender_id)`.
 | `excerpt` | string | verbatim model quote |
 | `excerpt_key` | string | normalized quote for dedupe |
 | `page_index`, `printed_page` | | citation |
+| `text_source` | string | `text_layer`, `ocr` or `empty`; OCR-only citations start as `needs_review` |
 | `clause_reference`, `form_reference` | string? | only when sourced |
 | `mandatory` | string | `yes`, `no`, `unknown` |
 | `deadline_text`, `consequence_text` | string? | only when sourced |
@@ -144,13 +165,30 @@ Indexes: unique `(document_id, page_index)`, `(company_id, tender_id)`.
 
 Indexes: `(company_id, tender_id, page_index)`, `(company_id, document_id)`, `(company_id, verification_status)`.
 
-## Planned Phase 4-5 collections
+## Phase 4 collections
+
+### `evidence_matches`
+
+One human decision per requirement and company. Fields: `company_id`, `tender_id`, `requirement_id`, `document_id`, `status` (`confirmed`, `contradicted`, `rejected`), `note`, `decided_by`, `created_at`, `updated_at`.
+
+Indexes: unique `(company_id, requirement_id)`, `(company_id, tender_id)`.
+
+### `fit_assessments`
+
+Latest deterministic snapshot per tender: `company_id`, `tender_id`, serialized score, eligibility summary and counts, `generated_at`, `created_at`. A GET recomputes from current inputs before saving, so this is an explainability snapshot, not the source of truth.
+
+Indexes: unique `(company_id, tender_id)`.
+
+### `checklist_tasks`
+
+Tender-specific actions with `company_id`, `tender_id`, `requirement_id`, `title`, `category`, `action`, `acceptance_criteria`, `evidence_check`, `issuer`, `signatory`, `deadline_text`, `trigger`, `consequence`, `source_document_title`, `page_index`, `printed_page`, `clause_reference`, `excerpt`, `source_url`, `status`, `owner`, `due_at`, timestamps.
+
+Indexes: `(company_id, due_at)`, `(company_id, tender_id, requirement_id)`.
+
+## Planned Phase 5 collections
 
 | Collection | Purpose |
 | --- | --- |
-| `evidence_matches` | requirement-to-company-document matches and gaps |
-| `fit_assessments` | deterministic score, dimension breakdown, coverage, eligibility results |
-| `checklist_tasks` | tender-specific actions, owners, statuses, deadlines, citations |
 | `tender_snapshots` | source snapshots per retrieval/version |
 | `changes` | detected differences, affected requirements/tasks, review state |
 | `calendar_events` | user-approved external events or exports |
@@ -164,8 +202,8 @@ company 1---* company_documents
 company 1---* tenders
 tender  1---* tender_documents
 tender_document 1---* requirements
-requirement 1---* evidence_matches *---1 company_document
-tender  1---* fit_assessments
+requirement 1---0..1 evidence_matches *---1 company_document
+tender  1---1 fit_assessments
 requirement 1---* checklist_tasks
 tender  1---* tender_snapshots 1---* changes
 checklist_task 1---* reminders / calendar_events

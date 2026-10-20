@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from tests.conftest import register_and_verify
+
 
 def test_profile_update_persists_and_increases_completeness(
     client: TestClient, auth_headers: dict[str, str]
@@ -43,17 +45,17 @@ def test_profile_update_persists_and_increases_completeness(
     assert reloaded["preferences"]["min_value"] == 1000000
 
 
-def test_company_records_are_isolated(client: TestClient, auth_headers: dict[str, str]):
-    second = client.post(
-        "/api/auth/register",
-        json={
-            "email": "second@example.com",
-            "password": "StrongPass123",
-            "full_name": "Vikram Shah",
-            "company_name": "Shah Builders",
-        },
+def test_company_records_are_isolated(
+    client: TestClient, auth_headers: dict[str, str], fake_email
+):
+    second = register_and_verify(
+        client,
+        fake_email,
+        email="second@example.com",
+        full_name="Vikram Shah",
+        company_name="Shah Builders",
     )
-    second_headers = {"Authorization": f"Bearer {second.json()['access_token']}"}
+    second_headers = {"Authorization": f"Bearer {second['access_token']}"}
 
     client.patch(
         "/api/companies/me",

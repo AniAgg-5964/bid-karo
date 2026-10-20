@@ -76,7 +76,19 @@
     "secureNote": "Secure company workspace",
     "feature1": "Source-cited tender requirements",
     "feature2": "Transparent bid suitability scoring",
-    "feature3": "Evidence gaps and compliance tasks"
+    "feature3": "Evidence gaps and compliance tasks",
+    "otpTitle": "Check your email",
+    "otpSubtitle": "Enter the 6-digit code to continue securely.",
+    "otpSentTitle": "Verification code sent",
+    "otpSentBody": "We sent a 6-digit code to {{email}}. It expires in 10 minutes.",
+    "otpCode": "6-digit code",
+    "otpExpiry": "The code can be used once. Check spam if it has not arrived.",
+    "verify": "Verify and continue",
+    "verifying": "Verifying...",
+    "resend": "Resend code",
+    "resendIn": "Resend in {{seconds}}s",
+    "backToSignIn": "Back to sign in",
+    "backToRegister": "Back to sign up"
   },
   "onboarding": {
     "kicker": "Workspace setup",
@@ -276,7 +288,18 @@
     "apiDocs": "Open API documentation",
     "saved": "Preference saved.",
     "signOutTitle": "Sign out of BidKaro",
-    "signOutBody": "You will need your email and password to sign back in."
+    "signOutBody": "You will need your email and password to sign back in.",
+    "emailSignIn": "Email sign-in code",
+    "emailSignInOn": "A 6-digit code is required after your password.",
+    "emailSignInOff": "Password-only sign-in is enabled for this account.",
+    "emailVerified": "Email verified",
+    "emailNotVerified": "Email not verified",
+    "enableEmailSignIn": "Enable email sign-in",
+    "disableEmailSignIn": "Disable email sign-in",
+    "securityModalTitle": "Confirm with your password",
+    "securityModalBody": "Enter your current password to change how you sign in.",
+    "currentPassword": "Current password",
+    "securityUpdated": "Security setting updated."
   },
   "tenders": {
     "title": "My tenders",
@@ -312,8 +335,8 @@
       "legal": "Legal & contract",
       "changes": "Changes",
       "tasks": "Tasks",
-      "pendingTitle": "Assessment not available yet",
-      "pendingBody": "Phase 4 adds the deterministic suitability score, mandatory eligibility checks and evidence matching. Requirement extraction is available under Documents and Requirements.",
+      "pendingTitle": "Changes tracking is not available yet",
+      "pendingBody": "Phase 5 adds rechecks of saved tenders, corrigenda detection and affected-task alerts. Requirements, scoring, eligibility, legal obligations and tasks are available now.",
       "sourceTitle": "Source and provenance",
       "sourceBody": "Original source, retrieval time and collected documents will be shown here with every requirement.",
       "keyInfo": "Key information",
@@ -367,7 +390,7 @@
       "deleteBody": "The PDF, extracted pages and every requirement from it will be removed. This cannot be undone.",
       "emptyTitle": "No PDF attached",
       "emptyBody": "Upload the tender document to extract requirements with page citations.",
-      "noTextHelp": "This PDF has no text layer. OCR is not enabled, so upload a digital copy.",
+      "noTextHelp": "This PDF has no usable text layer and OCR found no English text. Upload a clearer scan or a digital copy.",
       "pagesTitle": "Extracted pages",
       "pagesSubtitle": "This is the text the AI sees and the text every citation is checked against.",
       "page": "Page {{number}}",
@@ -376,7 +399,10 @@
       "sampleNote": "This is a clearly labelled synthetic sample created for testing. It is not an official tender.",
       "uploadedToast": "PDF attached and text extracted.",
       "uploadedNoTextToast": "PDF attached, but no text layer was found.",
-      "deletedToast": "PDF removed."
+      "deletedToast": "PDF removed.",
+      "ocrPages": "OCR: {{count}} page",
+      "ocrPages_plural": "OCR: {{count}} pages",
+      "ocrPageNote": "This page was transcribed with English OCR. Compare it with the page image before relying on a citation."
     },
     "requirements": {
       "title": "Extracted requirements",
@@ -416,7 +442,8 @@
         "total": "Requirements",
         "verified": "Verified",
         "unverified": "Unverified",
-        "documents": "Documents"
+        "documents": "Documents",
+        "needsReview": "Needs review"
       },
       "page": "Viewer page {{page}}",
       "printed": "printed page {{label}}",
@@ -437,7 +464,85 @@
       "pageModalTitle": "Source page",
       "unverifiedNote": "Not verified: {{reason}}",
       "showing": "Showing {{shown}} of {{total}} requirements.",
-      "retrieved": "Retrieved {{date}}"
+      "retrieved": "Retrieved {{date}}",
+      "ocrBadge": "OCR text",
+      "ocrPageNote": "This page text came from OCR. Check the excerpt visually against the page image before relying on the citation.",
+      "evidence": {
+        "title": "Evidence for this requirement",
+        "help": "Suggestions use deterministic token matching on your company documents. They are not decisions. Confirm only evidence you have checked yourself.",
+        "current": "Current evidence",
+        "noteLabel": "Reviewer note (optional)",
+        "notePlaceholder": "What did you check?",
+        "confirm": "Confirm as evidence",
+        "contradict": "This contradicts",
+        "reject": "Not evidence",
+        "link": "Link evidence",
+        "review": "Review evidence",
+        "noCandidatesTitle": "No matching documents found",
+        "noCandidatesBody": "Upload a relevant document in the Documents library, then link it here. Unknown stays Unknown until you confirm evidence.",
+        "confirmedToast": "Evidence confirmed.",
+        "contradictedToast": "Evidence marked as contradicting.",
+        "rejectedToast": "Document rejected as evidence.",
+        "statuses": {
+          "none": "No evidence",
+          "suggested": "Possible evidence",
+          "confirmed": "Evidence confirmed",
+          "contradicted": "Contradicting evidence",
+          "rejected": "Evidence rejected"
+        },
+        "expires": "Expires {{date}}"
+      }
+    },
+    "assessment": {
+      "scoreTitle": "Deterministic suitability score",
+      "scoreSubtitle": "A transparent soft score. It never overrides a failed or unknown mandatory criterion.",
+      "softScore": "Soft fit score",
+      "openEligibility": "Open eligibility",
+      "openTasks": "Open tasks",
+      "errorTitle": "Assessment could not load",
+      "reviewEvidence": "Review evidence",
+      "sourceDocument": "Source document",
+      "eligibilityTitle": "Mandatory eligibility",
+      "eligibilitySubtitle": "Pass requires human-confirmed valid evidence. Unknown is never treated as a pass.",
+      "noEligibilityTitle": "No mandatory eligibility criteria",
+      "noEligibilityBody": "Extract tender requirements first. Eligibility items appear only for verified mandatory requirements.",
+      "complianceTitle": "Submission and compliance checklist",
+      "complianceSubtitle": "Tender-specific tasks with source citations, deadlines and cited consequences.",
+      "tasksTitle": "Bid preparation tasks",
+      "tasksSubtitle": "Generated from extracted requirements. Source fields are never overwritten by later runs.",
+      "generate": "Generate checklist",
+      "evidenceCheck": "Evidence check",
+      "issuer": "Issuer / authority",
+      "trigger": "Deadline or trigger",
+      "noTasksTitle": "No checklist tasks yet",
+      "noTasksBody": "Generate tasks from the extracted requirements. Each task keeps its document, page and clause citation.",
+      "legalTitle": "Legal and contract obligations",
+      "legalSubtitle": "Extracted obligations and consequences with citations. This is not legal advice.",
+      "noLegalTitle": "No compliance or contract obligations extracted",
+      "noLegalBody": "Run requirement extraction on the tender PDF first.",
+      "gate": {
+        "pass": "Eligibility confirmed",
+        "fail": "Mandatory failure",
+        "unknown": "Eligibility unknown"
+      },
+      "bands": {
+        "strong": "Strong fit",
+        "moderate": "Moderate fit",
+        "weak": "Weak fit",
+        "insufficient": "Insufficient data"
+      },
+      "dimensions": {
+        "profile_fit": "Profile fit",
+        "requirements_verified": "Citation verification",
+        "evidence_coverage": "Mandatory evidence coverage",
+        "document_readiness": "Document readiness"
+      },
+      "counts": {
+        "requirements": "Requirements",
+        "verified": "Verified",
+        "gating": "Mandatory gates",
+        "openTasks": "Open tasks"
+      }
     }
   },
   "checklist": {
@@ -555,7 +660,12 @@
     "document.deleted": "Evidence document removed",
     "tender.saved": "Tender saved",
     "checklist.updated": "Checklist task updated",
-    "discovery.run": "Tender discovery run completed"
+    "discovery.run": "Tender discovery run completed",
+    "auth.otp_verified": "Email verification or sign-in code used",
+    "auth.registered_unverified": "Account created pending email verification",
+    "auth.otp_login_changed": "Email sign-in setting changed",
+    "evidence.decision": "Requirement evidence reviewed",
+    "checklist.generated": "Tender checklist generated"
   },
   "errors": {
     "network": "We could not reach the server. Check that the API is running and try again.",

@@ -19,6 +19,8 @@ class UserRepository:
         full_name: str,
         company_id: str,
         role: str = "owner",
+        email_verified: bool = False,
+        otp_login_enabled: bool = True,
     ) -> dict:
         now = utcnow()
         document = {
@@ -29,6 +31,8 @@ class UserRepository:
             "company_id": company_id,
             "role": role,
             "is_active": True,
+            "email_verified": email_verified,
+            "otp_login_enabled": otp_login_enabled,
             "created_at": now,
             "updated_at": now,
         }
@@ -40,6 +44,18 @@ class UserRepository:
 
     def find_by_id(self, user_id: str) -> dict | None:
         return with_id(self.collection.find_one({"_id": user_id}))
+
+    def mark_email_verified(self, user_id: str) -> None:
+        self.collection.update_one(
+            {"_id": user_id},
+            {"$set": {"email_verified": True, "updated_at": utcnow()}},
+        )
+
+    def set_otp_login_enabled(self, user_id: str, enabled: bool) -> None:
+        self.collection.update_one(
+            {"_id": user_id},
+            {"$set": {"otp_login_enabled": enabled, "updated_at": utcnow()}},
+        )
 
     def count_for_company(self, company_id: str) -> int:
         return self.collection.count_documents({"company_id": company_id})

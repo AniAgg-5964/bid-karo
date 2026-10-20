@@ -9,21 +9,28 @@ The defining principle is simple: every tender-specific claim must be traceable 
 - **Phase 0 — architecture and repository foundation:** complete.
 - **Phase 1 — functional foundation:** complete. Register/login, company onboarding, company profile, private document library, dashboard, English/Hindi and light/dark, tenant-isolated APIs.
 - **Phase 2 — live tender discovery:** complete. Profile-driven TinyFish search and page retrieval, deterministic deduplication, relevance scoring with reasons, source provenance, save/dismiss into the workspace.
-- **Phase 3 — tender documents and cited requirements:** complete for digital PDFs. Upload-first PDF collection, PyMuPDF page text with printed labels, user-triggered Groq extraction, deterministic verbatim/page citation checks, requirement review and a Documents/Requirements workspace. OCR for scanned PDFs is deliberately deferred.
+- **Phase 3 — tender documents and cited requirements:** complete. Upload-first PDF collection, PyMuPDF page text with printed labels, English Tesseract OCR for scanned pages, user-triggered Groq extraction, deterministic verbatim/page citation checks, requirement review and a Documents/Requirements workspace. OCR-derived citations are labelled and visually reviewable; OCR text alone cannot silently make a requirement verified.
+- **Phase 4 — deterministic assessment:** complete. A transparent soft-fit score, mandatory eligibility kept separate, human-confirmed evidence matching, tender-specific checklist tasks and cited legal/contract obligations.
+- **Authentication hardening:** Gmail SMTP email verification at signup and optional 6-digit email sign-in codes for verified accounts. The existing demo account remains password-only.
 - Later phases are tracked in [`docs/PHASES.md`](docs/PHASES.md).
 
 ### What works now
 
-- Real email/password auth (bcrypt + JWT); every company-scoped request is filtered by the authenticated company.
+- Real email/password auth (bcrypt + JWT) with Gmail SMTP verification codes; every company-scoped request is filtered by the authenticated company. Signup requires email verification, and verified accounts can require a 6-digit code after the password. Passwords and codes are never returned by the API.
 - 4-step onboarding and an editable company profile (details, capabilities, tender preferences, completeness score).
 - Private evidence document library: upload (PDF/PNG/JPG, local storage), list/search/filter, download and delete.
 - Live tender discovery: queries built from the company profile, real TinyFish search and page fetch, official sources flagged, aggregator index pages filtered out, and each result carrying source URL, retrieval time and verbatim excerpts for every extracted field.
-- Tender document workspace: attach a PDF by upload (primary) or attempt a direct public PDF download; page text and printed page labels are extracted with PyMuPDF; SHA-256 dedupe per tender; scanned PDFs are flagged `no_text_layer` rather than pretended to be readable.
+- Tender document workspace: attach a PDF by upload (primary) or attempt a direct public PDF download; page text and printed page labels are extracted with PyMuPDF; SHA-256 dedupe per tender. Pages without a text layer are OCR'd with local English Tesseract (bounded by page count and time), stored with `text_source: ocr`, and flagged for visual review. A PDF that still has no readable text is flagged rather than pretended to be readable.
 - User-triggered requirement extraction: Groq (or Gemini) proposes requirements in JSON, Pydantic validates every item, and deterministic code stores a requirement as `verified` only when its verbatim excerpt is found on the cited page. Mismatches are stored as `unverified` with a reason; nothing is silently dropped.
 - Requirement review: filter by category, verification state and mandatory flag; view the cited page text; mark requirements verified, rejected or needing review. Every review is audited.
+- Deterministic suitability score: profile fit, citation verification, confirmed mandatory evidence coverage and document readiness, computed in Python with visible weights and reasons. The soft score never hides a failed or unknown mandatory gate.
+- Mandatory eligibility: `Pass` / `Fail` / `Unknown` for each gating requirement. `Pass` needs a verified citation plus human-confirmed, non-expired evidence; missing or unknown evidence stays `Unknown`.
+- Evidence matching: deterministic candidate suggestions from the company document library, with explicit human `confirmed` / `contradicted` / `rejected` decisions. Suggestions never auto-pass a gate.
+- Tender-specific checklist: generated from mandatory, submission, compliance and form-referenced requirements. Each task carries the exact action, acceptance criteria, evidence check, issuer/signatory, deadline/trigger, cited consequence and source citation. Generation is idempotent and preserves human status and owners.
+- Legal and contract obligations: extracted compliance/performance clauses with document, page and clause citations, explicitly labelled as summary, not legal advice.
 - Deterministic profile-fit relevance with visible reasons; saved tenders flow into the dashboard, recent activity and the 14-day deadline metric.
 - Dashboard metrics, priority actions, deadlines and recent activity derived from stored records only.
-- Honest states everywhere: discovery reports a missing API key or incomplete profile instead of showing sample tenders; scanned PDFs and blocked downloads are labelled; Phase 4 scoring, eligibility and checklist pages still state that they are not enabled yet.
+- Honest states everywhere: discovery reports a missing API key or incomplete profile instead of showing sample tenders; scanned or OCR-read pages and blocked downloads are labelled; missing evidence is shown as Unknown, and Phase 5 change tracking/calendar remains explicitly unavailable.
 - English/Hindi and light/dark switches persist per user.
 
 The repository started empty. The product specification is `BidPilot_AI_Project_Workflow_and_Execution_Plan.docx` (kept outside the repository by the project owner). The UI direction follows the supplied BidKaro mockup screenshots.
@@ -54,6 +61,8 @@ storage/    Local uploaded files (git-ignored)
 - Node.js 20+ and npm
 - Python 3.11+
 - MongoDB 7+ running locally on `mongodb://localhost:27017` (or set `MONGODB_URI`)
+- Optional for scanned PDFs: Tesseract 5 with English language data (see [Scanned PDFs and OCR](#scanned-pdfs-and-ocr))
+- Optional for live email codes: a Gmail account with 2-Step Verification and a Google App Password
 
 ## Local setup
 
@@ -62,7 +71,29 @@ storage/    Local uploaded files (git-ignored)
 Copy `.env.example` to `.env` in the repository root and set a real `JWT_SECRET`.
 Copy `frontend/.env.example` to `frontend/.env` if the API is not on the default URL.
 
-### 2. MongoDB
+### 2. Gmail SMTP verification
+
+Signup sends a verification code and verified accounts may require a code at sign-in. The sender account is `bidkaroindia@gmail.com`.
+
+1. Enable 2-Step Verification on the Google account.
+2. Create a Google **App Password** for this app.
+3. Set it in the repository `.env` (never commit it):
+
+```text
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USERNAME=bidkaroindia@gmail.com
+SMTP_APP_PASSWORD=the-16-character-app-password
+SMTP_FROM_NAME=BidKaro
+OTP_EXPIRE_MINUTES=10
+OTP_RESEND_COOLDOWN_SECONDS=60
+OTP_MAX_SENDS_PER_HOUR=5
+OTP_MAX_ATTEMPTS=5
+```
+
+Codes are 6 digits, HMAC-hashed at rest, single-use, expire in 10 minutes, and are rate-limited per email/purpose. Unknown accounts receive a generic response. Without `SMTP_APP_PASSWORD`, registration returns an honest `503` instead of pretending an email was sent. Automated tests use a fake email service and never contact Gmail. The existing demo account is treated as already verified and stays password-only until you deliberately enable email sign-in in **Settings > Security**.
+
+### 3. MongoDB
 
 With `mongod` installed:
 
@@ -83,7 +114,7 @@ To copy existing local data into Atlas while keeping IDs, set `ATLAS_MONGODB_URI
 
 The script upserts by `_id`, verifies every source ID exists on the target, and never prints credentials. Uploaded files stay on local disk; only MongoDB records move.
 
-### 3. Backend
+### 4. Backend
 
 ```powershell
 cd backend
@@ -95,7 +126,7 @@ uvicorn app.main:app --reload --port 8000
 
 API docs: `http://localhost:8000/docs`
 
-### 4. Frontend
+### 5. Frontend
 
 ```powershell
 cd frontend
@@ -134,6 +165,24 @@ Run statistics separate the funnel: candidates searched, unique sources, pages r
 
 TinyFish's fetch response contains page text but no hyperlinks, and several official portals block automated retrieval. A run can therefore return no open tenders for a profile on a given day; the page says so instead of padding the list.
 
+## Scanned PDFs and OCR
+
+English OCR is available through local Tesseract. It is used only for pages with no usable text layer.
+
+- Install Tesseract 5 with the English language data (on Windows the default path is `C:\Program Files\Tesseract-OCR\tesseract.exe`), or set `TESSERACT_CMD`.
+- Configure the bounds:
+
+```text
+OCR_ENABLED=true
+OCR_LANGUAGE=eng
+OCR_DPI=300
+OCR_MAX_PAGES=40
+OCR_TIMEOUT_SECONDS=45
+TESSERACT_CMD=
+```
+
+OCR scope is deliberately English-only. Hindi/other-language OCR is not implemented. OCR text is marked `text_source: ocr`; pages show an OCR warning, and the Documents panel reports how many pages were OCR'd. A requirement whose excerpt is found only in OCR text is stored as `needs_review`, not `verified`, so a human must compare it with the page image. If Tesseract is unavailable or times out, the document is still stored with an honest `ocr_status`/error, not a fabricated text layer.
+
 ## Tender documents and requirements
 
 Open a saved tender, then use **Documents** and **Requirements**.
@@ -165,6 +214,18 @@ To create a clearly labelled synthetic sample tender for testing (8 pages, ficti
 
 The sample is flagged `is_sample` and shown with a **Synthetic sample** badge. It is not an official tender and is never presented as one.
 
+## Deterministic assessment and legal obligations
+
+Open a saved tender and use the **Suitability**, **Eligibility**, **Checklist** and **Legal & contract** tabs.
+
+- **Score:** 25% profile fit, 20% citation verification, 40% confirmed mandatory evidence coverage, 15% tender document readiness. The formula is deterministic Python, and every dimension shows its weight, points and reason.
+- **Eligibility:** separate from the score. Every gating item is `Pass`, `Fail` or `Unknown`. `Pass` requires both a verified source citation and human-confirmed, non-expired evidence. Missing evidence or an unverified citation stays `Unknown`. A rejected or expired document cannot pass.
+- **Evidence:** the API suggests possible company documents using deterministic token/type matching. You decide: confirm, mark as contradicting, or reject. One decision is stored per requirement, with your note and audit entry. Suggestions are never treated as proof.
+- **Checklist:** generated from the extracted requirements, not from a generic template. Each task keeps the exact action, acceptance criteria, evidence check, issuer/signatory, deadline/trigger, consequence (only when cited) and source document/page/clause. Re-running generation skips existing tasks, so human status and ownership are preserved.
+- **Legal:** shows extracted compliance and contract obligations with citations. It is a source summary, not legal advice.
+
+The assessment persists a snapshot in `fit_assessments`, but each GET recomputes the score from current requirements, documents and decisions so the displayed value cannot drift from its inputs.
+
 ## Tests
 
 ```powershell
@@ -186,8 +247,10 @@ npm test
 - Uploaded files are never exposed through public URLs.
 - Dashboard values come from stored records, never hardcoded sample metrics.
 - AI output is validated with Pydantic and deterministic checks before it is trusted.
-- Hard eligibility (`Pass` / `Fail` / `Unknown`) is separate from the Bid Suitability Score.
-- No paid service is required for local development.
+- Hard eligibility (`Pass` / `Fail` / `Unknown`) is separate from the Bid Suitability Score. A missing or unverified mandatory item is never a pass, and a high score never hides it.
+- Evidence suggestions are deterministic and never auto-pass; a human must confirm, contradict or reject.
+- Checklist tasks are generated from tender requirements and keep their source citation; no generic filler.
+- No paid service is required for local development. Tesseract is free and local; Gmail SMTP uses the project account's app password.
 
 ## Documentation
 

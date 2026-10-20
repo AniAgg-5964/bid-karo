@@ -1,8 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+OtpPurpose = Literal["verify_email", "login"]
 
 
 class RegisterRequest(BaseModel):
@@ -35,6 +38,10 @@ class UserOut(BaseModel):
     company_id: str
     role: str
     is_active: bool
+    # Older accounts predate email verification and are treated as verified;
+    # new accounts always store an explicit flag.
+    email_verified: bool = True
+    otp_login_enabled: bool = False
     created_at: datetime
 
 
@@ -48,6 +55,31 @@ class AuthResponse(BaseModel):
 class SessionResponse(BaseModel):
     user: UserOut
     company: "CompanyOut"
+
+
+class OtpChallenge(BaseModel):
+    otp_required: bool = True
+    purpose: OtpPurpose
+    email: EmailStr
+    message: str
+    expires_in_seconds: int
+    resend_after_seconds: int
+
+
+class OtpVerifyRequest(BaseModel):
+    email: EmailStr
+    code: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+    purpose: OtpPurpose = "login"
+
+
+class OtpResendRequest(BaseModel):
+    email: EmailStr
+    purpose: OtpPurpose = "login"
+
+
+class SecuritySettingsRequest(BaseModel):
+    otp_login_enabled: bool
+    current_password: str = Field(min_length=1, max_length=128)
 
 
 from app.models.company import CompanyOut  # noqa: E402  (resolves forward reference)

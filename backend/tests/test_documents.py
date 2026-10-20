@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from tests.conftest import PDF_BYTES
+from tests.conftest import PDF_BYTES, register_and_verify
 
 
 def upload(client: TestClient, headers: dict[str, str], name: str = "certificate.pdf"):
@@ -67,18 +67,18 @@ def test_unsupported_extension_is_rejected(client: TestClient, auth_headers: dic
     assert response.status_code == 422
 
 
-def test_other_company_cannot_access_document(client: TestClient, auth_headers: dict[str, str]):
+def test_other_company_cannot_access_document(
+    client: TestClient, auth_headers: dict[str, str], fake_email
+):
     document = upload(client, auth_headers).json()
-    second = client.post(
-        "/api/auth/register",
-        json={
-            "email": "other@example.com",
-            "password": "StrongPass123",
-            "full_name": "Other Owner",
-            "company_name": "Other Co",
-        },
+    second = register_and_verify(
+        client,
+        fake_email,
+        email="other@example.com",
+        full_name="Other Owner",
+        company_name="Other Co",
     )
-    other_headers = {"Authorization": f"Bearer {second.json()['access_token']}"}
+    other_headers = {"Authorization": f"Bearer {second['access_token']}"}
 
     assert client.get("/api/documents", headers=other_headers).json()["total"] == 0
     assert (

@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.core.dependencies import get_discovery_client
 from app.integrations.tinyfish import FetchBatch, FetchedPage, SearchHit
 from app.main import app
+from tests.conftest import register_and_verify
 
 OFFICIAL_URL = "https://mahatenders.gov.in/tender/road-114"
 AGGREGATOR_URL = "https://www.tender247.com/tenders/office-furniture"
@@ -180,23 +181,22 @@ def test_discovery_requires_profile_terms(client: TestClient, auth_headers: dict
     assert "company profile" in response.json()["detail"].lower()
 
 
-def test_discovery_is_scoped_to_the_company(client: TestClient, auth_headers: dict[str, str]):
+def test_discovery_is_scoped_to_the_company(
+    client: TestClient, auth_headers: dict[str, str], fake_email
+):
     set_profile(client, auth_headers)
     configure(FakeTinyFish(hits=default_hits(), pages=default_pages()))
     client.post("/api/discovery/run", headers=auth_headers)
     assert client.get("/api/discovery/tenders", headers=auth_headers).json()["total"] >= 1
 
-    other = client.post(
-        "/api/auth/register",
-        json={
-            "email": "other@example.com",
-            "password": "StrongPass123",
-            "full_name": "Other Owner",
-            "company_name": "Other Infra Pvt Ltd",
-        },
+    other = register_and_verify(
+        client,
+        fake_email,
+        email="other@example.com",
+        full_name="Other Owner",
+        company_name="Other Infra Pvt Ltd",
     )
-    assert other.status_code == 201, other.text
-    other_headers = {"Authorization": f"Bearer {other.json()['access_token']}"}
+    other_headers = {"Authorization": f"Bearer {other['access_token']}"}
 
     assert client.get("/api/discovery/tenders", headers=other_headers).json()["total"] == 0
     assert client.get("/api/discovery/runs", headers=other_headers).json()["total"] == 0

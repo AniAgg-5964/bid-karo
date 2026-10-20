@@ -44,6 +44,9 @@ class CompanyRepository:
     def find_by_id(self, company_id: str) -> dict | None:
         return with_id(self.collection.find_one({"_id": company_id}))
 
+    def delete(self, company_id: str) -> None:
+        self.collection.delete_one({"_id": company_id})
+
     def update(self, company_id: str, changes: dict) -> dict | None:
         changes = {key: value for key, value in changes.items() if value is not None}
         if not changes:

@@ -218,4 +218,5 @@ class RequirementRepository:
             "total": count({}),
             "verified": count({"verification_status": "verified"}),
             "unverified": count({"verification_status": "unverified"}),
+            "needs_review": count({"verification_status": "needs_review"}),
         }

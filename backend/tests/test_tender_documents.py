@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from tests.conftest import make_pdf
+from app.services import requirement_service as requirement_service_module
+from tests.conftest import make_pdf, register_and_verify
 
 
 def upload_document(
@@ -61,6 +62,38 @@ def test_upload_extracts_pages_and_download(
     assert downloaded.headers["cache-control"] == "private, no-store"
 
 
+def test_scanned_pdf_uses_ocr_and_labels_pages(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    tender: dict,
+    scanned_pdf: bytes,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        requirement_service_module,
+        "build_ocr",
+        lambda **kwargs: (
+            lambda png: (
+                "The bidder shall have an average annual turnover of at least INR 5 crore."
+            )
+        ),
+    )
+    response = upload_document(client, auth_headers, tender["id"], scanned_pdf)
+    assert response.status_code == 201, response.text
+    document = response.json()
+    assert document["status"] == "extracted"
+    assert document["ocr_status"] == "applied"
+    assert document["ocr_page_count"] == 1
+    assert document["text_page_count"] == 1
+
+    page = client.get(
+        f"/api/tender-documents/{document['id']}/pages/1", headers=auth_headers
+    )
+    assert page.status_code == 200
+    assert page.json()["text_source"] == "ocr"
+    assert "average annual turnover" in page.json()["text"]
+
+
 def test_duplicate_upload_reuses_document(
     client: TestClient, auth_headers: dict[str, str], tender: dict, sample_pdf: bytes
 ):
@@ -113,19 +146,21 @@ def test_delete_removes_document_pages(
 
 
 def test_other_company_cannot_access_tender_documents(
-    client: TestClient, auth_headers: dict[str, str], tender: dict, sample_pdf: bytes
+    client: TestClient,
+    auth_headers: dict[str, str],
+    tender: dict,
+    sample_pdf: bytes,
+    fake_email,
 ):
     document = upload_document(client, auth_headers, tender["id"], sample_pdf).json()
-    second = client.post(
-        "/api/auth/register",
-        json={
-            "email": "other-docs@example.com",
-            "password": "StrongPass123",
-            "full_name": "Other Owner",
-            "company_name": "Other Co",
-        },
+    second = register_and_verify(
+        client,
+        fake_email,
+        email="other-docs@example.com",
+        full_name="Other Owner",
+        company_name="Other Co",
     )
-    other_headers = {"Authorization": f"Bearer {second.json()['access_token']}"}
+    other_headers = {"Authorization": f"Bearer {second['access_token']}"}
 
     assert (
         client.get(f"/api/tenders/{tender['id']}/documents", headers=other_headers).status_code

@@ -324,6 +324,13 @@ export function TenderDocumentsPanel({ tenderId, isSample = false, onExtracted }
                         <Badge tone="neutral">
                           {t(`tenders.documentsPanel.kinds.${document.kind}`)}
                         </Badge>
+                        {document.ocr_page_count > 0 ? (
+                          <Badge tone="amber">
+                            {t("tenders.documentsPanel.ocrPages", {
+                              count: document.ocr_page_count,
+                            })}
+                          </Badge>
+                        ) : null}
                       </div>
                       <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs muted">
                         <span>
@@ -532,7 +539,9 @@ export function TenderDocumentsPanel({ tenderId, isSample = false, onExtracted }
                   {page.printed_label && page.printed_label !== String(page.page_index) ? (
                     <span className="ml-1 text-[10px] opacity-70">({page.printed_label})</span>
                   ) : null}
-                  {!page.has_text ? (
+                  {page.text_source === "ocr" ? (
+                    <span className="ml-1 text-[10px] font-bold text-amber-600">OCR</span>
+                  ) : !page.has_text ? (
                     <span className="ml-1 text-[10px] text-amber-600">!</span>
                   ) : null}
                 </button>
@@ -556,6 +565,11 @@ export function TenderDocumentsPanel({ tenderId, isSample = false, onExtracted }
                       </span>
                     ) : null}
                   </div>
+                  {selectedPage.text_source === "ocr" ? (
+                    <p className="mb-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                      {t("tenders.documentsPanel.ocrPageNote")}
+                    </p>
+                  ) : null}
                   {selectedPage.has_text ? (
                     <pre className="max-h-[26rem] overflow-auto whitespace-pre-wrap rounded-xl bg-navy-50 p-3 text-xs leading-5 text-navy-800 dark:bg-navy-950 dark:text-navy-100">
                       {selectedPage.text}

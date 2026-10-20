@@ -7,8 +7,8 @@ Each phase is committed separately. A phase is complete only when its acceptance
 | 0 | Repository assessment, architecture, folder structure, env template, data contracts, test strategy, ordered plan | Complete |
 | 1 | React/Vite app, FastAPI, MongoDB, auth, onboarding, company profile, uploads, English/Hindi, responsive dashboard | Complete |
 | 2 | Real TinyFish discovery and retrieval, tender ingestion, document collection, deduplication | Complete for discovery, retrieval, ingestion and deduplication |
-| 3 | Tender PDFs, page-level text extraction, cited requirements, deterministic citation validation, document/requirement UI | Complete for PDF text layers; OCR/ scanned PDFs are explicitly deferred |
-| 4 | Deterministic suitability score, eligibility, evidence matching, checklist, legal clauses | Not started |
+| 3 | Tender PDFs, page-level text extraction, cited requirements, deterministic citation validation, document/requirement UI | Complete, including an English OCR fallback for scanned pages |
+| 4 | Deterministic suitability score, eligibility, evidence matching, checklist, legal clauses | Complete |
 | 5 | Tasks, reminders, snapshots, change detection, calendar/export, post-award obligations | Not started |
 | 6 | Integration, polish, security review, full tests, docs, demo, known limitations | Not started |
 
@@ -57,18 +57,41 @@ Known limitation: TinyFish fetch returns page text without hyperlinks and severa
 
 - Tender PDFs are acquired upload-first, with an opportunistic direct download only when a public PDF URL is supplied. Downloads re-validate redirects, reject private/reserved hosts, cap size, require `%PDF` magic bytes and record a reason (`http_403`, `not_pdf`, `too_large`, `timeout`, `network_error`) instead of pretending a document was collected.
 - The same PDF (SHA-256) is stored once per tender. Bytes live under `storage/companies/{company_id}/tenders/{tender_id}/`; metadata, page rows and requirements are company-scoped.
-- PyMuPDF extracts text page by page and stores the viewer page index plus the printed page label. A PDF with no text layer is stored as `no_text_layer` and cannot be sent to the AI; OCR is explicitly deferred.
+- PyMuPDF extracts text page by page and stores the viewer page index plus the printed page label. Pages without a text layer are OCR'd with local English Tesseract within configured page/time bounds. OCR text is stored with `text_source: ocr` and shown with a visual-review warning. A PDF that still has no readable text is stored as `no_text_layer` and cannot be sent to the AI.
 - Document status is one of `extracted`, `no_text_layer` or `failed`, with encrypted/corrupt PDFs reported honestly.
 - AI extraction is user-triggered per document, not automatic. Groq is used through a provider abstraction (`AI_PROVIDER=groq`); Gemini remains supported by the same interface.
 - AI output is treated as untrusted: each item is validated with Pydantic, each requirement needs a verbatim excerpt and a cited page, and the excerpt must be found on that page after whitespace/typography normalisation. Failures are stored as `unverified` with a reason; they are never silently dropped or presented as verified.
 - Requirements keep document ID, viewer page, printed page, clause/form reference, verbatim excerpt, interpretation, mandatory flag, source URL and retrieval provenance, model and prompt version.
 - Re-running extraction is idempotent (duplicates are skipped); `replace=true` replaces only AI-origin requirements for that document.
 - A human can mark a requirement `verified`, `needs_review` or `rejected`; changes are audited.
-- The tender workspace has working **Documents** and **Requirements** tabs with page viewing, filters, verification badges, honest empty/blocked/scanned states and English/Hindi strings.
+- The tender workspace has working **Documents** and **Requirements** tabs with page viewing, filters, verification badges, OCR badges/warnings, honest empty/blocked/scanned states and English/Hindi strings.
+- A requirement whose excerpt is found only in OCR text is stored as `needs_review`, not `verified`, so a human compares it with the page image.
 
 Phase 3 verification on 2026-10-20: backend `pytest` 68 passed; frontend `npm test` 16 passed; `npm run build` succeeded. A clearly labelled synthetic 8-page RFP (`scripts/make-sample-tender.py`) was processed end to end: PyMuPDF extracted 8/8 text pages, Groq (`openai/gpt-oss-120b`) extracted 33 requirements across 3 chunks, and all 33 excerpts were found verbatim on their cited pages. The browser review covered the sample badge, documents panel, extracted-page viewer, requirements summary/filters, verbatim excerpts and the source-page modal. Atlas migration copied the demo company's records to MongoDB Atlas and the app logged in and served the same data against Atlas.
 
-Known limitations: OCR is not implemented, so scanned PDFs are flagged and require a digital copy; direct downloads are best-effort and portals may block them; AI extraction runs synchronously and is capped per request (`AI_EXTRACTION_MAX_CHUNKS`, 12; `AI_EXTRACTION_MAX_PAGES`, 80); requirement extraction is not eligibility or scoring, which remains Phase 4.
+Known limitations: OCR supports English only; Tesseract must be installed and is bounded per document (`OCR_MAX_PAGES`, 40; `OCR_TIMEOUT_SECONDS`, 45); direct downloads are best-effort and portals may block them; AI extraction runs synchronously and is capped per request (`AI_EXTRACTION_MAX_CHUNKS`, 12; `AI_EXTRACTION_MAX_PAGES`, 80).
+
+## Authentication hardening
+
+- New accounts must verify their email with a 6-digit code sent through Gmail SMTP before receiving a session.
+- Verified accounts can require an email code after password login. Codes are 6 digits, HMAC-hashed at rest, single-use, expire after 10 minutes, and are rate-limited (`OTP_RESEND_COOLDOWN_SECONDS`, 60; `OTP_MAX_SENDS_PER_HOUR`, 5; `OTP_MAX_ATTEMPTS`, 5).
+- Unknown account emails receive a generic response. Codes are never logged or returned by the API.
+- Existing accounts without the new fields are treated as already verified and password-only, so the demo account keeps working. A verified user can enable or disable email sign-in in **Settings > Security** by confirming the current password.
+- Live signup requires `SMTP_APP_PASSWORD` to contain a Google App Password for `bidkaroindia@gmail.com`; otherwise the API returns an honest `503`. Tests use a fake email service and never contact Gmail.
+
+## Phase 4 exit criteria
+
+- The suitability score is computed only in Python from fixed weights (profile fit 25%, citation verification 20%, confirmed mandatory evidence coverage 40%, tender document readiness 15%) and shows every dimension, weight, contribution and reason.
+- Mandatory eligibility is separate from the soft score and uses only `Pass` / `Fail` / `Unknown`.
+- `Pass` requires a verified requirement citation and human-confirmed, non-expired company evidence. Missing evidence is never a pass. `Fail` requires a confirmed contradicting decision. Everything else stays `Unknown`.
+- Evidence candidates are deterministic suggestions only. The human decision is one of `confirmed`, `contradicted` or `rejected`, stored once per requirement with note, actor and audit entry. Rejected or expired documents cannot pass.
+- Checklist tasks are generated from tender-specific requirements (mandatory, submission, compliance or form-referenced). Each task carries action, acceptance criteria, evidence check, issuer/signatory, deadline/trigger, consequence only when cited, and document/page/clause provenance. Regeneration is idempotent and preserves human status/owner.
+- Legal and contract obligations are shown with their citations and labelled as a summary, not legal advice.
+- All assessment, evidence, checklist and legal endpoints are company-scoped.
+
+Phase 4 verification on 2026-10-20: backend `pytest` 81 passed; frontend `npm test` 19 passed; `npm run build` succeeded. Live checks against the saved synthetic tender returned a deterministic score of 35 (weak/insufficient data), 18 mandatory eligibility items all correctly `Unknown`, 11 cited legal/contract obligations, and 33 tender-specific checklist tasks. The demo account stayed password-only with email treated as verified. A live registration attempt without `SMTP_APP_PASSWORD` returned the documented `503` and did not fabricate an email.
+
+Known limitations: Phase 4 scoring judges fit and compliance readiness, not legal eligibility. Evidence matching is token/type based and only as good as the company document metadata and the human decisions. Checklist generation does not invent owners or consequences. Phase 5 change tracking, snapshots, reminders and calendar export are not implemented.
 
 ## Later-phase guardrails
 

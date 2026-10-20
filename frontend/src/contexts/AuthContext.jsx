@@ -59,19 +59,38 @@ export function AuthProvider({ children }) {
   const login = useCallback(
     async (credentials) => {
       const data = await api.post("/auth/login", credentials);
+      if (data.otp_required) return data;
       applyAuth(data);
       return data;
     },
     [applyAuth],
   );
 
-  const register = useCallback(
+  const register = useCallback(async (payload) => {
+    return api.post("/auth/register", payload);
+  }, []);
+
+  const verifyOtp = useCallback(
     async (payload) => {
-      const data = await api.post("/auth/register", payload);
+      const data = await api.post("/auth/verify-otp", payload);
       applyAuth(data);
       return data;
     },
     [applyAuth],
+  );
+
+  const resendOtp = useCallback(
+    async (payload) => api.post("/auth/resend-otp", payload),
+    [],
+  );
+
+  const updateSecurity = useCallback(
+    async (payload) => {
+      const user = await api.post("/auth/security", payload);
+      setSession((current) => (current ? { ...current, user } : current));
+      return user;
+    },
+    [],
   );
 
   const refreshSession = useCallback(async () => {
@@ -92,6 +111,9 @@ export function AuthProvider({ children }) {
       isAuthenticated: Boolean(token && session),
       login,
       register,
+      verifyOtp,
+      resendOtp,
+      updateSecurity,
       logout: clearSession,
       refreshSession,
       updateCompany,
@@ -102,6 +124,9 @@ export function AuthProvider({ children }) {
       loading,
       login,
       register,
+      verifyOtp,
+      resendOtp,
+      updateSecurity,
       clearSession,
       refreshSession,
       updateCompany,

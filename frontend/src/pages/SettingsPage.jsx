@@ -12,6 +12,7 @@ import { currentLocale } from "../i18n";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Button } from "../components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card";
+import { FieldError, Input, Label } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
 import { cn, formatDate } from "../lib/utils";
 
@@ -19,9 +20,13 @@ export function SettingsPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const toast = useToast();
-  const { session, logout } = useAuth();
+  const { session, logout, updateSecurity } = useAuth();
   const { theme, setTheme } = useTheme();
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [securityOpen, setSecurityOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [securityBusy, setSecurityBusy] = useState(false);
+  const [securityError, setSecurityError] = useState("");
 
   const docsUrl = `${API_URL.replace(/\/api$/, "")}/docs`;
 
@@ -149,8 +154,51 @@ export function SettingsPage() {
                 <CardTitle>{t("settings.security")}</CardTitle>
               </div>
             </CardHeader>
-            <CardContent className="pt-3">
+            <CardContent className="space-y-4 pt-3">
               <p className="text-sm leading-6 muted">{t("settings.securityNote")}</p>
+
+              <div className="border-t border-navy-100 pt-4 dark:border-navy-800">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-navy-900 dark:text-white">
+                    {t("settings.emailSignIn")}
+                  </p>
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+                      session?.user?.otp_login_enabled
+                        ? "bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-200"
+                        : "bg-navy-100 text-navy-600 dark:bg-navy-800 dark:text-navy-300",
+                    )}
+                  >
+                    {session?.user?.otp_login_enabled ? "ON" : "OFF"}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs leading-5 muted">
+                  {session?.user?.otp_login_enabled
+                    ? t("settings.emailSignInOn")
+                    : t("settings.emailSignInOff")}
+                </p>
+                <p className="mt-1.5 text-xs font-medium text-navy-600 dark:text-navy-300">
+                  {session?.user?.email_verified
+                    ? t("settings.emailVerified")
+                    : t("settings.emailNotVerified")}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => {
+                    setSecurityError("");
+                    setCurrentPassword("");
+                    setSecurityOpen(true);
+                  }}
+                >
+                  {session?.user?.otp_login_enabled
+                    ? t("settings.disableEmailSignIn")
+                    : t("settings.enableEmailSignIn")}
+                </Button>
+              </div>
+
               <a
                 href={docsUrl}
                 target="_blank"
@@ -189,6 +237,60 @@ export function SettingsPage() {
         }
       >
         <p className="text-sm muted">{session?.user?.email}</p>
+      </Modal>
+
+      <Modal
+        open={securityOpen}
+        onClose={() => setSecurityOpen(false)}
+        title={t("settings.securityModalTitle")}
+        description={t("settings.securityModalBody")}
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setSecurityOpen(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              onClick={async () => {
+                setSecurityError("");
+                setSecurityBusy(true);
+                try {
+                  await updateSecurity({
+                    otp_login_enabled: !session?.user?.otp_login_enabled,
+                    current_password: currentPassword,
+                  });
+                  toast.success(t("settings.securityUpdated"));
+                  setSecurityOpen(false);
+                  setCurrentPassword("");
+                } catch (err) {
+                  setSecurityError(
+                    err.message === "NETWORK_ERROR"
+                      ? t("errors.network")
+                      : err.message || t("errors.generic"),
+                  );
+                } finally {
+                  setSecurityBusy(false);
+                }
+              }}
+              loading={securityBusy}
+            >
+              {t("common.confirm")}
+            </Button>
+          </>
+        }
+      >
+        <div>
+          <Label htmlFor="current-password">{t("settings.currentPassword")}</Label>
+          <Input
+            id="current-password"
+            type="password"
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(event) => setCurrentPassword(event.target.value)}
+            placeholder="********"
+          />
+          <FieldError>{securityError}</FieldError>
+        </div>
       </Modal>
     </div>
   );

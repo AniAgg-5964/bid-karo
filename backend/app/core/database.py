@@ -99,6 +99,18 @@ class Database:
         return self.db["audit_logs"]
 
     @property
+    def otp_codes(self):
+        return self.db["otp_codes"]
+
+    @property
+    def evidence_matches(self):
+        return self.db["evidence_matches"]
+
+    @property
+    def fit_assessments(self):
+        return self.db["fit_assessments"]
+
+    @property
     def discovered_tenders(self):
         return self.db["discovered_tenders"]
 
@@ -133,6 +145,15 @@ class Database:
             [("company_id", ASCENDING), ("created_at", DESCENDING)],
             name="ix_audit_company_created",
         )
+        self.otp_codes.create_index(
+            [("email", ASCENDING), ("purpose", ASCENDING), ("created_at", DESCENDING)],
+            name="ix_otp_email_purpose_created",
+        )
+        self.otp_codes.create_index(
+            [("expires_at", ASCENDING)],
+            name="ttl_otp_expires",
+            expireAfterSeconds=0,
+        )
 
         self.tenders.create_index(
             [("company_id", ASCENDING), ("created_at", DESCENDING)],
@@ -141,6 +162,24 @@ class Database:
         self.checklist_tasks.create_index(
             [("company_id", ASCENDING), ("due_at", ASCENDING)],
             name="ix_tasks_company_due",
+        )
+        self.checklist_tasks.create_index(
+            [("company_id", ASCENDING), ("tender_id", ASCENDING), ("requirement_id", ASCENDING)],
+            name="ix_tasks_company_tender_requirement",
+        )
+        self.evidence_matches.create_index(
+            [("company_id", ASCENDING), ("requirement_id", ASCENDING)],
+            unique=True,
+            name="uq_evidence_company_requirement",
+        )
+        self.evidence_matches.create_index(
+            [("company_id", ASCENDING), ("tender_id", ASCENDING)],
+            name="ix_evidence_company_tender",
+        )
+        self.fit_assessments.create_index(
+            [("company_id", ASCENDING), ("tender_id", ASCENDING)],
+            unique=True,
+            name="uq_fit_company_tender",
         )
         self.changes.create_index(
             [("company_id", ASCENDING), ("detected_at", DESCENDING)],

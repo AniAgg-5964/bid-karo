@@ -35,6 +35,18 @@ class Settings(BaseSettings):
     storage_dir: Path = ROOT_DIR / "storage"
     max_upload_mb: int = 25
 
+    # Gmail SMTP OTP delivery. Use a Google App Password, never the account password.
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 465
+    smtp_username: str = "bidkaroindia@gmail.com"
+    smtp_app_password: str = ""
+    smtp_from_name: str = "BidKaro"
+    smtp_timeout_seconds: int = 20
+    otp_expire_minutes: int = 10
+    otp_resend_cooldown_seconds: int = 60
+    otp_max_sends_per_hour: int = 5
+    otp_max_attempts: int = 5
+
     tinyfish_api_key: str = ""
     tinyfish_base_url: str = ""
     tinyfish_agent_timeout_seconds: int = 120
@@ -50,6 +62,12 @@ class Settings(BaseSettings):
     ai_max_output_tokens: int = 2000
 
     pdf_max_pages: int = 200
+    ocr_enabled: bool = True
+    ocr_language: str = "eng"
+    ocr_dpi: int = 300
+    ocr_max_pages: int = 40
+    ocr_timeout_seconds: int = 45
+    tesseract_cmd: str = ""
     ai_extraction_max_chunk_chars: int = 4000
     ai_extraction_max_pages_per_chunk: int = 3
     ai_extraction_max_chunks: int = 12

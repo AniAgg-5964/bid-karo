@@ -25,12 +25,15 @@ Routes validate input and enforce authentication. Services own business rules. R
 | `core` | Settings, MongoDB lifecycle, security primitives, dependencies |
 | `models` | Pydantic request/response contracts and shared enums |
 | `repositories` | Collection access, indexes, tenant-scoped queries |
-| `services` | Auth, company, documents, tender documents/PDF extraction, requirements, dashboard, audit, storage |
+| `services` | Auth/OTP, company, documents, tender documents/PDF extraction/OCR, requirements, deterministic assessment, dashboard, audit, storage |
 | `api/routes` | HTTP endpoints grouped by domain |
 | `integrations` | TinyFish, Groq and Gemini adapters |
-| `services/pdf_extraction.py` | Deterministic PyMuPDF page text and printed-label extraction |
+| `services/pdf_extraction.py` | Deterministic PyMuPDF page text and printed-label extraction, with English Tesseract OCR fallback |
+| `services/ocr.py` | Local Tesseract invocation, page rendering and OCR failure reporting |
+| `services/assessment.py` | Deterministic fit score, mandatory gate, evidence suggestions, checklist and legal-clause selection |
+| `services/email.py` | Gmail SMTP delivery for verification codes |
 
-Planned domain modules mirror the product workflow: tenders, requirements, evidence matching, scoring, eligibility, checklists, legal clauses, changes, tasks, calendar, and post-award obligations.
+Phase 4 assessment is implemented. Phase 5 modules (snapshots, change detection, reminders, calendar/export, post-award obligations) remain planned.
 
 ## Tenant isolation
 
@@ -55,12 +58,24 @@ The central invariant is that tender-specific requirements retain provenance. Th
 - verbatim excerpt plus a separately labelled interpretation;
 - mandatory flag (`yes` / `no` / `unknown`);
 - verification status (`verified`, `unverified`, `needs_review`, `rejected`) and a reason for failures;
+- text source (`text_layer` or `ocr`), so an OCR-derived citation can be reviewed visually;
 - AI origin, model and prompt version;
 - human-review changes, which are also audited.
 
 A requirement is stored as `verified` only when deterministic code finds its normalized excerpt on the cited page. A requirement without a valid source is never presented as verified. The AI only proposes extraction candidates.
 
 Tender document bytes are validated (PDF signature, size), deduplicated by SHA-256 per tender, and stored outside the database.
+
+## Assessment traceability
+
+The Phase 4 assessment is a deterministic projection of stored evidence, never a model opinion:
+
+- `evidence_matches` stores one human decision per requirement (`confirmed`, `contradicted`, `rejected`) with a note, actor and timestamps;
+- `fit_assessments` stores the latest computed snapshot for explainability, but a GET recomputes it from current inputs;
+- `checklist_tasks` copies the source citation and tender-specific fields, so later extraction runs cannot silently rewrite a task;
+- the eligibility gate is evaluated separately from the soft score, and the API returns both with reasons.
+
+No result is labelled legally eligible, and the UI states that legal/contract content is a cited summary, not legal advice.
 
 ## Deterministic versus AI
 
@@ -105,6 +120,7 @@ AI may propose extracted fields, requirements, clause interpretations and concis
 ## Security baseline
 
 - Passwords are hashed with bcrypt.
+- Signup and optional sign-in codes are 6 digits, HMAC-hashed at rest, single-use, expiring and rate-limited. Raw codes are never logged or returned by the API.
 - JWTs are signed with a server-side secret and expire.
 - CORS is restricted to configured origins.
 - Uploads are type/size validated and downloaded only through authorized routes.

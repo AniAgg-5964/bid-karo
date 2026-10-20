@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import io
+
+import pymupdf
 import pytest
+from PIL import Image, ImageDraw
 
 from app.services.download import DownloadError, _validate_public_url
 from app.services.pdf_extraction import PdfExtractionError, extract_pdf_pages
@@ -27,6 +31,51 @@ def test_extract_pdf_pages_keeps_page_provenance(sample_pdf: bytes):
 def test_scanned_pdf_is_not_treated_as_text():
     extraction = extract_pdf_pages(make_pdf([" "]))
     assert extraction.text_page_count == 0
+    assert extraction.status == "no_text_layer"
+
+
+def _scanned_pdf(text: str) -> bytes:
+    image = Image.new("RGB", (1400, 400), "white")
+    draw = ImageDraw.Draw(image)
+    draw.text((40, 80), text, fill="black")
+    buffer = io.BytesIO()
+    image.save(buffer, "PNG")
+
+    document = pymupdf.open()
+    page = document.new_page(width=612, height=792)
+    page.insert_image(pymupdf.Rect(30, 30, 582, 762), stream=buffer.getvalue())
+    data = document.tobytes()
+    document.close()
+    return data
+
+
+def test_ocr_transcribes_scanned_pages_and_labels_the_source():
+    seen: list[bytes] = []
+
+    def fake_ocr(png: bytes) -> str:
+        seen.append(png)
+        return (
+            "The bidder shall have an average annual turnover of at least "
+            "INR 5 crore during the last three financial years."
+        )
+
+    extraction = extract_pdf_pages(_scanned_pdf("Turnover requirement"), ocr=fake_ocr)
+    assert seen
+    assert extraction.ocr_page_count == 1
+    assert extraction.text_page_count == 1
+    assert extraction.status == "extracted"
+    assert extraction.pages[0].text_source == "ocr"
+    assert "average annual turnover" in extraction.pages[0].text
+
+
+def test_ocr_page_cap_is_reported():
+    extraction = extract_pdf_pages(
+        _scanned_pdf("Turnover requirement"),
+        ocr=lambda png: "A sufficiently long piece of recognised OCR text for this test page.",
+        ocr_max_pages=0,
+    )
+    assert extraction.ocr_page_count == 0
+    assert extraction.ocr_skipped_pages == 1
     assert extraction.status == "no_text_layer"
 
 

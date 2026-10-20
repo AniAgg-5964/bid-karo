@@ -13,6 +13,7 @@ from app.integrations.ai import AIProvider, build_ai_provider
 from app.repositories.users import UserRepository
 from app.repositories.companies import CompanyRepository
 from app.services.discovery_service import DiscoveryService
+from app.services.email import EmailService
 from app.services.requirement_service import RequirementService
 from app.services.storage import StorageService
 
@@ -24,6 +25,10 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_prefix}/auth/login
 def get_storage() -> StorageService:
     current = get_settings()
     return StorageService(current.storage_dir, current.max_upload_mb)
+
+
+def get_email_service() -> EmailService:
+    return EmailService()
 
 
 def get_discovery_client() -> TinyFishClient:

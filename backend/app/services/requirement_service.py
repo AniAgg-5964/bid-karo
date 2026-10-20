@@ -27,7 +27,9 @@ from app.core.exceptions import (
 )
 from app.integrations.ai import AIError, AIProvider
 from app.models.requirements import CATEGORIES, RequirementExtractionResponse
+from app.repositories.assessment import EvidenceRepository
 from app.repositories.audit import AuditRepository
+from app.repositories.documents import DocumentRepository
 from app.repositories.tender_documents import (
     RequirementRepository,
     TenderDocumentRepository,
@@ -36,6 +38,7 @@ from app.repositories.tender_documents import (
 from app.repositories.tenders import TenderRepository
 from app.services.download import DownloadError, download_pdf
 from app.services.pdf_extraction import PdfExtractionError, extract_pdf_pages
+from app.services.ocr import OcrUnavailable, build_ocr
 from app.services.storage import StorageService, sanitize_original_filename
 
 PROMPT_VERSION = "requirements-v1"
@@ -190,6 +193,8 @@ class RequirementService:
         self.documents = TenderDocumentRepository(db)
         self.pages = TenderPageRepository(db)
         self.requirements = RequirementRepository(db)
+        self.evidence = EvidenceRepository(db)
+        self.company_documents = DocumentRepository(db)
         self.audit = AuditRepository(db)
 
     # ------------------------------------------------------------- documents
@@ -235,13 +240,39 @@ class RequirementService:
         truncated = False
         status = "extracted"
         error: str | None = None
+        ocr_page_count = 0
+        ocr_status = "disabled" if not self.settings.ocr_enabled else "not_needed"
+        ocr = None
+        if self.settings.ocr_enabled:
+            try:
+                ocr = build_ocr(
+                    language=self.settings.ocr_language,
+                    tesseract_cmd=self.settings.tesseract_cmd,
+                    timeout_seconds=self.settings.ocr_timeout_seconds,
+                )
+            except OcrUnavailable:
+                ocr_status = "unavailable"
 
         try:
-            extraction = extract_pdf_pages(content, max_pages=self.settings.pdf_max_pages)
+            extraction = extract_pdf_pages(
+                content,
+                max_pages=self.settings.pdf_max_pages,
+                ocr=ocr,
+                ocr_dpi=self.settings.ocr_dpi,
+                ocr_max_pages=self.settings.ocr_max_pages,
+            )
             page_count = extraction.page_count
             text_page_count = extraction.text_page_count
             truncated = extraction.truncated
             status = extraction.status
+            ocr_page_count = extraction.ocr_page_count
+            if self.settings.ocr_enabled and ocr is not None:
+                if ocr_page_count and (extraction.ocr_failed_pages or extraction.ocr_skipped_pages):
+                    ocr_status = "partial"
+                elif ocr_page_count:
+                    ocr_status = "applied"
+                elif text_page_count < page_count:
+                    ocr_status = "failed"
             for page in extraction.pages:
                 page_rows.append(
                     {
@@ -250,6 +281,7 @@ class RequirementService:
                         "text": page.text,
                         "char_count": page.char_count,
                         "has_text": page.has_text,
+                        "text_source": page.text_source,
                     }
                 )
         except PdfExtractionError as exc:
@@ -275,6 +307,8 @@ class RequirementService:
                     "status": status,
                     "page_count": page_count,
                     "text_page_count": text_page_count,
+                    "ocr_page_count": ocr_page_count,
+                    "ocr_status": ocr_status,
                     "truncated": truncated,
                     "error": error,
                 }
@@ -443,7 +477,8 @@ class RequirementService:
 
         if not text_pages:
             raise ValidationError(
-                "This PDF has no extractable text layer. Upload a digital copy; OCR is not enabled."
+                "This PDF has no extractable text. OCR did not produce usable text; "
+                "upload a clearer digital copy or enable OCR in the server settings."
             )
         if self.ai is None or not self.ai.configured:
             raise NotConfiguredError(
@@ -471,6 +506,7 @@ class RequirementService:
             "invalid": 0,
             "verified": 0,
             "unverified": 0,
+            "needs_review": 0,
             "failed_chunks": 0,
         }
         last_error: str | None = None
@@ -524,6 +560,10 @@ class RequirementService:
             f"Extracted {stats['created']} requirements "
             f"({stats['verified']} verified, {stats['unverified']} unverified)."
         )
+        if stats["needs_review"]:
+            message += (
+                f" {stats['needs_review']} matched OCR text and need visual review."
+            )
         if stats["duplicates"]:
             message += f" Skipped {stats['duplicates']} duplicates."
         if stats["invalid"]:
@@ -550,6 +590,7 @@ class RequirementService:
             invalid=stats["invalid"],
             verified=stats["verified"],
             unverified=stats["unverified"],
+            needs_review=stats["needs_review"],
             failed_chunks=stats["failed_chunks"],
             model=self.ai.model,
             message=message,
@@ -577,6 +618,11 @@ class RequirementService:
 
         reason = self._validate_excerpt(item, pages_by_index)
         page = pages_by_index.get(page_index) or {}
+        text_source = page.get("text_source") or "text_layer"
+        ocr_review = False
+        if not reason and text_source == "ocr":
+            reason = "Excerpt matched OCR text only; verify it visually against the page image."
+            ocr_review = True
 
         title = _trim(item.title, MAX_TITLE_CHARS)
         if not title:
@@ -599,12 +645,13 @@ class RequirementService:
                 "excerpt_key": excerpt_key,
                 "page_index": page_index,
                 "printed_page": page.get("printed_label"),
+                "text_source": text_source,
                 "clause_reference": _trim(item.clause_reference, MAX_REFERENCE_CHARS),
                 "form_reference": _trim(item.form_reference, MAX_REFERENCE_CHARS),
                 "mandatory": _mandatory(item.mandatory),
                 "deadline_text": _trim(item.deadline_text, 500),
                 "consequence_text": _trim(item.consequence_text, 1000),
-                "verification_status": "unverified" if reason else "verified",
+                "verification_status": "needs_review" if ocr_review else ("unverified" if reason else "verified"),
                 "verification_notes": reason,
                 "document_title": document.get("title"),
                 "document_retrieved_at": document.get("retrieved_at"),
@@ -615,20 +662,41 @@ class RequirementService:
             }
         )
         stats["created"] += 1
-        if reason:
+        if ocr_review:
+            stats["needs_review"] += 1
+        elif reason:
             stats["unverified"] += 1
         else:
             stats["verified"] += 1
 
+    def _decorate_evidence(self, items: list[dict], company_id: str) -> list[dict]:
+        if not items:
+            return items
+        decisions = self.evidence.find_for_requirements(
+            [item["id"] for item in items], company_id
+        )
+        if not decisions:
+            return items
+        documents, _ = self.company_documents.list_for_company(company_id, limit=300)
+        titles = {item["id"]: item.get("title") for item in documents}
+        for item in items:
+            decision = decisions.get(item["id"])
+            if decision:
+                item["evidence_status"] = decision.get("status") or "none"
+                item["evidence_document_id"] = decision.get("document_id")
+                item["evidence_document_title"] = titles.get(decision.get("document_id"))
+        return items
+
     def list_requirements(self, tender_id: str, company_id: str, **filters) -> tuple[list[dict], int]:
         self._tender(tender_id, company_id)
-        return self.requirements.list_for_tender(company_id, tender_id, **filters)
+        items, total = self.requirements.list_for_tender(company_id, tender_id, **filters)
+        return self._decorate_evidence(items, company_id), total
 
     def get_requirement(self, requirement_id: str, company_id: str) -> dict:
         requirement = self.requirements.find_for_company(requirement_id, company_id)
         if not requirement:
             raise NotFoundError("Requirement not found.")
-        return requirement
+        return self._decorate_evidence([requirement], company_id)[0]
 
     def review_requirement(
         self,

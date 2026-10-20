@@ -6,8 +6,6 @@ import {
   CalendarClock,
   ExternalLink,
   FileText,
-  Gauge,
-  Scale,
   ShieldCheck,
   TriangleAlert,
 } from "lucide-react";
@@ -20,6 +18,12 @@ import { Badge, StatusBadge } from "../components/ui/Badge";
 import { Skeleton } from "../components/ui/Spinner";
 import { TenderDocumentsPanel } from "../components/tender/TenderDocumentsPanel";
 import { TenderRequirementsPanel } from "../components/tender/TenderRequirementsPanel";
+import {
+  TenderEligibilityPanel,
+  TenderLegalPanel,
+  TenderScorePanel,
+  TenderTasksPanel,
+} from "../components/tender/TenderAssessmentPanels";
 import { formatDate, formatDateTime } from "../lib/utils";
 
 const TABS = ["overview", "requirements", "documents", "score", "eligibility", "compliance", "legal", "changes", "tasks"];
@@ -87,7 +91,7 @@ export function TenderDetailPage() {
     );
   }
 
-  const firstTab = (tab) => setSearchParams({ tab });
+  const openTab = (tab) => setSearchParams({ tab });
 
   return (
     <div className="space-y-5">
@@ -164,7 +168,7 @@ export function TenderDetailPage() {
           <button
             key={tab}
             type="button"
-            onClick={() => firstTab(tab)}
+            onClick={() => openTab(tab)}
             className={
               activeTab === tab
                 ? "shrink-0 rounded-lg bg-teal-50 px-3.5 py-2 text-xs font-semibold text-teal-800 dark:bg-teal-950 dark:text-teal-200"
@@ -237,19 +241,21 @@ export function TenderDetailPage() {
         />
       ) : activeTab === "requirements" ? (
         <TenderRequirementsPanel tenderId={tenderId} refreshKey={requirementsKey} />
+      ) : activeTab === "score" ? (
+        <TenderScorePanel tenderId={tenderId} onOpenTab={openTab} />
+      ) : activeTab === "eligibility" ? (
+        <TenderEligibilityPanel tenderId={tenderId} onOpenTab={openTab} />
+      ) : activeTab === "compliance" ? (
+        <TenderTasksPanel tenderId={tenderId} complianceOnly />
+      ) : activeTab === "legal" ? (
+        <TenderLegalPanel tenderId={tenderId} />
+      ) : activeTab === "tasks" ? (
+        <TenderTasksPanel tenderId={tenderId} />
       ) : (
         <Card>
           <CardContent className="py-10">
             <EmptyState
-              icon={
-                activeTab === "score"
-                  ? Gauge
-                  : activeTab === "eligibility"
-                    ? ShieldCheck
-                    : activeTab === "legal"
-                      ? Scale
-                      : FileText
-              }
+              icon={FileText}
               title={t("tenders.detail.pendingTitle")}
               description={t("tenders.detail.pendingBody")}
             />
