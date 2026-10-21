@@ -22,6 +22,7 @@ import { Skeleton } from "../components/ui/Spinner";
 import { TenderDocumentsPanel } from "../components/tender/TenderDocumentsPanel";
 import { TenderRequirementsPanel } from "../components/tender/TenderRequirementsPanel";
 import { TenderChangesPanel } from "../components/tender/TenderChangesPanel";
+import { TenderRecommendPanel } from "../components/tender/TenderRecommendPanel";
 import {
   TenderEligibilityPanel,
   TenderLegalPanel,
@@ -41,6 +42,7 @@ const TABS = [
   "changes",
   "tasks",
   "obligations",
+  "recommend",
 ];
 
 export function TenderDetailPage() {
@@ -314,6 +316,8 @@ export function TenderDetailPage() {
         <TenderTasksPanel tenderId={tenderId} phase="pre_award" />
       ) : activeTab === "obligations" ? (
         <TenderTasksPanel tenderId={tenderId} phase="post_award" />
+      ) : activeTab === "recommend" ? (
+        <TenderRecommendPanel tenderId={tenderId} />
       ) : (
         <Card>
           <CardContent className="py-10">

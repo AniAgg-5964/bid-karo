@@ -119,6 +119,8 @@ class GroundingCheck:
     dropped_claims: list[str] = field(default_factory=list)
     grounded_requirements: list[str] = field(default_factory=list)
     unsupported_requirements: list[str] = field(default_factory=list)
+    # The text with the sentences that carried an unsupported figure removed.
+    cleaned_claim: str = ""
 
 
 _AMOUNT_RE = re.compile(
@@ -181,7 +183,15 @@ def check_grounding(
     * every number, date or threshold in the text must already exist in one of
       the referenced clauses or in the stored tender record.
     """
-    known = {_normalise_ref(item): item for item in requirement_ids}
+    known: dict[str, str] = {}
+    for item in requirement_ids:
+        known[_normalise_ref(str(item))] = str(item)
+    for item_id, record in (known_requirements or {}).items():
+        # A model refers to a clause by its number ("3.1") as often as by its
+        # id, so both are accepted.
+        clause = (record or {}).get("clause_reference")
+        if clause:
+            known.setdefault(_normalise_ref(str(clause)), str(item_id))
     referenced = [str(item) for item in _referenced_ids(claim)]
     grounded = [known[_normalise_ref(item)] for item in referenced if _normalise_ref(item) in known]
     unsupported = [item for item in referenced if _normalise_ref(item) not in known]
@@ -209,19 +219,52 @@ def check_grounding(
     for value in (stored_fields or {}).values():
         if isinstance(value, (int, float)):
             haystack.add(f"num:{float(value):.2f}")
+        elif isinstance(value, dict):
+            # Our own records (a certificate we hold, a turnover we declared).
+            for item in value.values():
+                if isinstance(item, (int, float)):
+                    haystack.add(f"num:{float(item):.2f}")
+                elif item:
+                    haystack |= _numbers(str(item))
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                if isinstance(item, dict):
+                    for entry in item.values():
+                        if entry:
+                            haystack |= _numbers(str(entry))
+                elif item:
+                    haystack |= _numbers(str(item))
         elif value:
             haystack |= _numbers(str(value))
 
-    claim_numbers = _numbers(_REF_RE.sub(" ", claim))
-    missing = sorted(number for number in claim_numbers if number not in haystack)
+    # A sentence that states a figure we cannot trace is removed, so the rest
+    # of the advice is still usable and nothing unverified is kept.
+    kept: list[str] = []
+    missing: set[str] = set()
+    for sentence in _sentences(claim):
+        figures = _numbers(_REF_RE.sub(" ", sentence))
+        unsupported = sorted(number for number in figures if number not in haystack)
+        if unsupported:
+            missing.update(unsupported)
+            continue
+        kept.append(sentence.strip())
+    cleaned = " ".join(part for part in kept if part).strip()
+    check.cleaned_claim = cleaned
     if missing:
-        check.dropped_claims = missing
-        check.reason = (
-            "The recommendation stated a figure that is not in the clause it "
-            "refers to."
-        )
-        check.grounded = False
+        check.dropped_claims = sorted(missing)
+        if not cleaned:
+            check.reason = (
+                "The recommendation stated a figure that is not in the clause it "
+                "refers to."
+            )
+            check.grounded = False
     return check
+
+
+def _sentences(text: str) -> list[str]:
+    """Split a piece of prose into sentences, keeping the punctuation."""
+    parts = re.split(r"(?<=[.!?])\s+", (text or "").strip())
+    return [part for part in parts if part and part.strip()]
 
 
 _REF_RE = re.compile(

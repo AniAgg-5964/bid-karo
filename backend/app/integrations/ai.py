@@ -17,6 +17,9 @@ from app.core.config import Settings, get_settings
 
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 MAX_ATTEMPTS = 3
+# A rate-limited provider usually clears in about a quarter of a minute, so a
+# short backoff would only burn the attempts.
+RETRY_BACKOFF_SECONDS = {429: 15, 500: 3, 502: 3, 503: 5, 504: 5}
 
 
 class AIError(RuntimeError):
@@ -93,7 +96,7 @@ class GroqProvider:
 
             if response.status_code not in RETRYABLE_STATUS or attempt == MAX_ATTEMPTS - 1:
                 break
-            time.sleep(3 * (attempt + 1))
+            time.sleep(RETRY_BACKOFF_SECONDS.get(response.status_code, 3) * (attempt + 1))
 
         if response is None:
             raise AIError("AI request failed before a response was received.")
@@ -162,7 +165,7 @@ class GeminiProvider:
 
             if response.status_code not in RETRYABLE_STATUS or attempt == MAX_ATTEMPTS - 1:
                 break
-            time.sleep(3 * (attempt + 1))
+            time.sleep(RETRY_BACKOFF_SECONDS.get(response.status_code, 3) * (attempt + 1))
 
         if response is None:
             raise AIError("AI request failed before a response was received.")

@@ -579,12 +579,21 @@ export function TenderTasksPanel({ tenderId, complianceOnly = false, phase = nul
 export function TenderLegalPanel({ tenderId }) {
   const { t } = useTranslation();
   const [data, setData] = useState(null);
+  const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
     setLoading(true);
+    api
+      .get(`/analysis/tenders/${tenderId}/legal-sources`)
+      .then((response) => {
+        if (active) setSources(response.items || []);
+      })
+      .catch(() => {
+        if (active) setSources([]);
+      });
     api
       .get(`/tenders/${tenderId}/legal`)
       .then((response) => {
@@ -602,6 +611,9 @@ export function TenderLegalPanel({ tenderId }) {
   }, [tenderId, t]);
 
   if (loading) return <AssessmentSkeleton />;
+
+  const sourcesFor = (requirementId) =>
+    sources.filter((source) => source.requirement_id === requirementId);
 
   return (
     <Card>
@@ -666,6 +678,52 @@ export function TenderLegalPanel({ tenderId }) {
                     {t("tenders.requirements.source")}
                     <ExternalLink className="h-3 w-3" />
                   </a>
+                ) : null}
+                {sourcesFor(item.requirement_id).length ? (
+                  <div className="mt-3 space-y-2 rounded-lg border border-navy-100 bg-navy-50/60 p-3 dark:border-navy-800 dark:bg-navy-800/60">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-navy-500">
+                      {t("tenders.recommend.legalSources")}
+                    </p>
+                    {sourcesFor(item.requirement_id).map((source) => (
+                      <div key={source.id} className="border-l-2 border-teal-300 pl-2">
+                        <blockquote className="text-xs leading-5 text-navy-800 dark:text-navy-100">
+                          {source.quote}
+                        </blockquote>
+                        <p className="mt-1 text-[11px] muted">
+                          {t("tenders.recommend.legalRead")}:{" "}
+                          {formatDateTime(source.retrieved_at, currentLocale())} · {source.source_class}
+                        </p>
+                        {source.gap ? (
+                          <p className="mt-1 text-[11px] text-amber-800 dark:text-amber-200">
+                            {source.gap}
+                          </p>
+                        ) : null}
+                        {source.must_hold?.length ? (
+                          <p className="mt-1 text-[11px] text-navy-700 dark:text-navy-200">
+                            <span className="font-semibold">
+                              {t("tenders.recommend.legalMustHold")}:
+                            </span>{" "}
+                            {source.must_hold.join("; ")}
+                          </p>
+                        ) : null}
+                        {source.next_action ? (
+                          <p className="mt-1 text-[11px] text-navy-700 dark:text-navy-200">
+                            <span className="font-semibold">{t("tenders.recommend.legalNext")}:</span>{" "}
+                            {source.next_action}
+                          </p>
+                        ) : null}
+                        <a
+                          href={source.source_url}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-teal-700 hover:underline dark:text-teal-300"
+                        >
+                          {t("tenders.requirements.source")}
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
                 ) : null}
               </article>
             ))}

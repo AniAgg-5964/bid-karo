@@ -107,6 +107,14 @@ class Database:
         return self.db["jobs"]
 
     @property
+    def recommendations(self):
+        return self.db["recommendations"]
+
+    @property
+    def legal_sources(self):
+        return self.db["legal_sources"]
+
+    @property
     def audit_logs(self):
         return self.db["audit_logs"]
 

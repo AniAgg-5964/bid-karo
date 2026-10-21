@@ -92,6 +92,10 @@ class Settings(BaseSettings):
     job_worker_enabled: bool = True
     job_poll_seconds: float = 2.0
 
+    # The agent steps. Legal research is bounded because it reads the web and
+    # asks a model for every clause it covers.
+    legal_research_max_clauses: int = 3
+
     @field_validator("api_prefix")
     @classmethod
     def normalize_prefix(cls, value: str) -> str:

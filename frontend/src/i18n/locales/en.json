@@ -385,7 +385,8 @@
         "reviewStatus": "Review",
         "snapshotMeta": "{{count}} requirement · {{hash}}",
         "snapshotMeta_plural": "{{count}} requirements · {{hash}}"
-      }
+      },
+      "recommend": "Recommend"
     },
     "sampleBadge": "Synthetic sample",
     "documentsPanel": {
@@ -602,6 +603,63 @@
         "during_contract": "During contract",
         "after_completion": "After completion"
       }
+    },
+    "recommend": {
+      "title": "What to do about this tender",
+      "subtitle": "The agent reads the tender, proposes the next step for each clause, and the gate checks every proposal against a clause we hold.",
+      "note": "Proposals are proposed by the model and checked by deterministic code. A proposal that does not rest on a verified clause is kept, with the reason, and cannot become a task.",
+      "run": "Run analysis",
+      "queued": "The analysis was queued. The steps below show what it is doing.",
+      "applied": "The proposal was added to the checklist.",
+      "action": "What to do",
+      "acceptance": "How we will know it is done",
+      "owner": "Suggested owner",
+      "due": "Suggested date",
+      "clauses": "Rests on clause",
+      "dropped": "{{count}} figure in this proposal was not in the clause and was removed.",
+      "emptyTitle": "No recommendations yet",
+      "emptyBody": "Run the analysis to get a proposed action for every clause, checked against the tender and our own records.",
+      "ungroundedTitle": "Proposals we could not confirm",
+      "ungroundedBody": "These did not rest on a clause we hold, or stated a figure that is not in it. They are shown so nothing is hidden, and they cannot become tasks.",
+      "showUngrounded": "Show them",
+      "hideUngrounded": "Hide them",
+      "disclaimer": "Legal sources are read from official government pages on the date shown. This is a source summary, not legal advice.",
+      "jobTitle": "Analysis",
+      "addToChecklist": "Add to the checklist",
+      "grounding": {
+        "grounded": "Checked against the tender",
+        "verified": "Read from an official source",
+        "unverified": "Not confirmed",
+        "needs_review": "Needs review",
+        "rejected": "Rejected"
+      },
+      "kind": {
+        "document_to_prepare": "Document to prepare",
+        "clarification_to_raise": "Clarification to raise",
+        "red_flag": "Red flag",
+        "format_requirement": "Format requirement",
+        "timeline_note": "Timeline",
+        "verification": "Verification"
+      },
+      "jobStatus": {
+        "queued": "Queued",
+        "running": "Running",
+        "done": "Finished",
+        "failed": "Failed"
+      },
+      "stepStatus": {
+        "pending": "Waiting",
+        "running": "Running",
+        "done": "Done",
+        "failed": "Failed",
+        "skipped": "Not available yet"
+      },
+      "legalSources": "What the official sources say",
+      "legalNone": "No official source could be read for this clause yet.",
+      "legalGap": "Where we stand",
+      "legalMustHold": "What we must hold",
+      "legalNext": "Next step",
+      "legalRead": "Read on"
     }
   },
   "checklist": {

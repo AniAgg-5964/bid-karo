@@ -155,6 +155,28 @@ Two things a tender actually arrives with were missing, and the agent work neede
 
 Verification on 2026-10-21: backend `pytest` 132 passed (9 package tests, 11 gate tests, 6 job tests), frontend `npm test` 22 passed, `npm run build` succeeded. A live package upload of a portal-style archive (RFP, BOQ spreadsheet, scanned notice image, CAD drawing, corrigendum, nested archive, executable, path-traversal entry) stored 5 files and refused 3 with their reasons; the analysis job read 2 documents and produced 24 cited requirements, and the three later steps reported "not available yet".
 
+## Phase 7 groundwork: the three agents (verified 2026-10-21)
+
+The tender workspace can now answer "what do we do about this?" instead of only restating the PDF.
+
+**The gate is the heart of it.** `services/agents/gate.py` decides what may be stored, and it contains no model. The quote rule set proves a quote is on the page it was cited from. The grounding rule set proves a proposal rests only on clauses that passed the quote gate and states no figure that is not already in that clause, in the tender record or in our own evidence. A sentence carrying an unsupported figure is removed and the rest of the advice is kept, with the removed figure listed. A proposal that fails keeps its reason, is shown, and cannot become a task.
+
+**The three agents**
+
+| Agent | Job | Decides |
+| --- | --- | --- |
+| 1 `recommender.py` | proposes the next step for each clause, naming our own document and owner | nothing - the gate disposes |
+| 2 `verifier.py` | explains the deterministic eligibility verdict and proposes the remedy | nothing - the verdict stays with the code |
+| 3 `legal_researcher.py` | reads official legal sources with TinyFish and quotes them | nothing - the allow-list and the quote check decide |
+
+**Official sources only.** `services/agents/sources.py` holds the allow-list (the central government domains), the topic map (which source answers which question), the instrument map (which Act governs a clause) and the rule that a state government domain is allowed only for state-specific topics. The search names the instrument and the government domain, and a law firm blog, a news site, a tender portal or an aggregator is refused rather than warned about. When the official page cannot be read in a form that states the provision, the page we did read is cited with its date and the gap is stated.
+
+**The surface.** The tender page has a **Recommend** tab: the analysis job with its steps and counts, the proposals that passed the gate (what to do, how we will know it is done, a suggested owner, a due date computed from the bid deadline), the proposals that did not pass with their reason, and the official sources under each clause on the **Legal & contract** tab. A grounded proposal becomes a checklist task only when a person applies it.
+
+Verification on 2026-10-21: backend `pytest` 144 passed (12 agent tests), frontend `npm test` 22 passed, `npm run build` succeeded. A live run over the seeded tender read 2 documents, proposed 11 recommendations of which 3 passed the gate, explained 12 clauses of which 1 was fully grounded (6 pass, 0 fail, 6 unknown from the deterministic engine), and read 5 official sources, quoting what it actually read.
+
+Known limits, stated honestly: the legal assistant can reach official pages, but many statute pages are scans or PDF-only portals the fetcher cannot read, so it often cites the page with an honest note rather than the provision text; the model rate-limits on the free tier, so the agent prompts are trimmed and the provider is retried with a longer backoff; and the job worker still runs inside the API process, so a large package or a long model call can block it. Moving the worker to its own process and streaming uploads to disk are the next hardening steps.
+
 ## Later-phase guardrails
 
 - Phase 2 is not complete with mocked TinyFish responses.
