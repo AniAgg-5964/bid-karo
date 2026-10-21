@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.api.routes import (
+    analysis,
     assessment,
     auth,
     companies,
@@ -26,3 +27,4 @@ api_router.include_router(tender_documents.router)
 api_router.include_router(assessment.router)
 api_router.include_router(discovery.router)
 api_router.include_router(workflow.router)
+api_router.include_router(analysis.router)

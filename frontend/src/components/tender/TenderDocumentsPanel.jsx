@@ -1,16 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  AlertTriangle,
-  Download,
-  Eye,
-  FileText,
-  Link2,
-  Plus,
-  Sparkles,
-  Trash2,
-  UploadCloud,
-} from "lucide-react";
+import { AlertTriangle, Download, Eye, FileText, Link2, Plus, Sparkles, Trash2, UploadCloud, Package } from "lucide-react";
 
 import { api } from "../../lib/api";
 import { formatBytes, formatDateTime } from "../../lib/utils";
@@ -234,6 +224,10 @@ export function TenderDocumentsPanel({ tenderId, isSample = false, onExtracted }
   const statusLabel = (status) =>
     t(`tenders.documentsPanel.statuses.${status}`, { defaultValue: status });
 
+  const packages = documents.filter((document) => document.is_container);
+  const standalone = documents.filter(
+    (document) => !document.is_container && !document.parent_document_id,
+  );
   return (
     <Card>
       <CardHeader
@@ -305,7 +299,82 @@ export function TenderDocumentsPanel({ tenderId, isSample = false, onExtracted }
           </div>
         ) : documents.length ? (
           <div className="space-y-3">
-            {documents.map((document) => (
+            {packages.map((pkg) => (
+              <div
+                key={pkg.id}
+                className="rounded-xl border border-navy-200 bg-navy-50/40 p-4 dark:border-navy-700 dark:bg-navy-900/40"
+              >
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300">
+                    <Package className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-navy-900 dark:text-white">
+                      {pkg.title}
+                    </p>
+                    <p className="text-xs muted">
+                      {t("tenders.documentsPanel.packageFiles", {
+                        count: pkg.package_summary?.stored ?? 0,
+                        total: pkg.package_summary?.total ?? 0,
+                      })}
+                    </p>
+                  </div>
+                  <Badge tone="teal">{t("tenders.documentsPanel.kinds.package")}</Badge>
+                </div>
+                {pkg.package_summary?.skipped_files?.length ? (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+                    <p className="font-semibold">
+                      {t("tenders.documentsPanel.packageSkipped", {
+                        count: pkg.package_summary.skipped_files.length,
+                      })}
+                    </p>
+                    <ul className="mt-1 space-y-0.5">
+                      {pkg.package_summary.skipped_files.map((file) => (
+                        <li key={file.path}>
+                          <span className="font-medium">{file.path}</span> - {file.reason}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                <div className="mt-3 space-y-2">
+                  {(pkg.package_summary?.members || []).map((member) => (
+                    <div
+                      key={member.path}
+                      className="rounded-lg border border-navy-100 bg-white p-3 dark:border-navy-800 dark:bg-navy-900"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-sm font-medium text-navy-900 dark:text-white">
+                          {member.title}
+                        </p>
+                        {member.status ? (
+                          <StatusBadge
+                            status={member.status}
+                            label={statusLabel(member.status)}
+                          />
+                        ) : null}
+                        <Badge tone="neutral">
+                          {t(`tenders.documentsPanel.kinds.${member.kind}`)}
+                        </Badge>
+                        <span className="text-[11px] muted">{member.path}</span>
+                      </div>
+                      <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs muted">
+                        <span>
+                          {t("tenders.documentsPanel.pages", { count: member.page_count || 0 })}
+                        </span>
+                        <span>{formatBytes(member.size_bytes || 0)}</span>
+                      </p>
+                      {member.reason ? (
+                        <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                          {member.reason}
+                        </p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {standalone.map((document) => (
               <div
                 key={document.id}
                 className="rounded-xl border border-navy-100 p-4 dark:border-navy-800"
@@ -467,7 +536,7 @@ export function TenderDocumentsPanel({ tenderId, isSample = false, onExtracted }
               </span>
               <input
                 type="file"
-                accept="application/pdf,.pdf"
+                accept="application/pdf,.pdf,.zip,application/zip,image/png,image/jpeg"
                 className="hidden"
                 onChange={(event) => chooseFile(event.target.files?.[0])}
               />

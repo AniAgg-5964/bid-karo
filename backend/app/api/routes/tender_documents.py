@@ -55,9 +55,18 @@ async def upload_tender_document(
     company: dict = Depends(get_current_company),
     service: RequirementService = Depends(get_requirement_service),
 ) -> TenderDocumentOut:
-    content = await file.read(service.storage.max_bytes + 1)
-    if len(content) > service.storage.max_bytes:
-        raise ValidationError(f"Files must be {service.storage.max_upload_mb} MB or smaller.")
+    # A tender may be uploaded as a single PDF, an image, or the ZIP package it
+    # was downloaded as. A package has its own, larger, limit.
+    is_package = (file.filename or "").lower().endswith(".zip")
+    if is_package:
+        max_bytes = service.settings.package_max_upload_mb * 1024 * 1024
+        max_label = f"{service.settings.package_max_upload_mb} MB"
+    else:
+        max_bytes = service.storage.max_bytes
+        max_label = f"{service.storage.max_upload_mb} MB"
+    content = await file.read(max_bytes + 1)
+    if len(content) > max_bytes:
+        raise ValidationError(f"Files must be {max_label} or smaller.")
     document = service.upload_document(
         tender_id=tender_id,
         company_id=company["id"],

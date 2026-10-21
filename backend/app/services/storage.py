@@ -13,7 +13,21 @@ ALLOWED_TYPES = {
     ".jpeg": ("image/jpeg", (b"\xff\xd8\xff",)),
 }
 
-STORED_NAME_RE = re.compile(r"^[a-f0-9]{32}\.(pdf|png|jpg|jpeg)$")
+# A tender package: a ZIP the tender was downloaded as. It is expanded into
+# individual documents on the server, so it is never served as a file itself.
+PACKAGE_TYPES = {
+    ".zip": ("application/zip", (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")),
+}
+
+# Suffixes we may write to disk for a tender document. The first four are the
+# types we read; the rest are kept as files from a package without being read.
+TENDER_SUFFIXES = {
+    ".pdf", ".png", ".jpg", ".jpeg", ".zip",
+    ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".csv", ".rtf",
+    ".dwg", ".dxf",
+}
+
+STORED_NAME_RE = re.compile(r"^[a-f0-9]{32}\.[a-z0-9]{1,8}$")
 TENDER_ID_RE = re.compile(r"^[a-f0-9]{32}$")
 
 
@@ -55,6 +69,27 @@ class StorageService:
 
         return suffix, expected_mime
 
+    def validate_package(
+        self, filename: str | None, content_type: str | None, content: bytes
+    ) -> tuple[str, str]:
+        """Validate a tender package (a ZIP archive)."""
+        if not content:
+            raise ValidationError("The uploaded file is empty.")
+        original = sanitize_original_filename(filename)
+        suffix = Path(original).suffix.lower()
+        if suffix not in PACKAGE_TYPES:
+            raise ValidationError("Tender packages must be ZIP archives.")
+
+        expected_mime, signatures = PACKAGE_TYPES[suffix]
+        if not any(content.startswith(signature) for signature in signatures):
+            raise ValidationError("The file content does not match its extension.")
+
+        declared = (content_type or "").lower()
+        if declared and declared not in {expected_mime, "application/octet-stream", "application/x-zip-compressed"}:
+            raise ValidationError("The declared file type is not supported.")
+
+        return suffix, expected_mime
+
     def save_company_document(
         self, company_id: str, suffix: str, content: bytes
     ) -> tuple[str, Path]:
@@ -83,13 +118,15 @@ class StorageService:
             path.unlink()
 
     def save_tender_document(
-        self, company_id: str, tender_id: str, content: bytes
+        self, company_id: str, tender_id: str, content: bytes, suffix: str = ".pdf"
     ) -> tuple[str, Path]:
         if not TENDER_ID_RE.match(tender_id):
             raise ValidationError("Invalid tender reference.")
+        if suffix not in TENDER_SUFFIXES:
+            raise ValidationError("Unsupported tender document type.")
         folder = self.root / "companies" / company_id / "tenders" / tender_id
         folder.mkdir(parents=True, exist_ok=True)
-        stored_filename = f"{uuid4().hex}.pdf"
+        stored_filename = f"{uuid4().hex}{suffix}"
         path = folder / stored_filename
         path.write_bytes(content)
         return stored_filename, path
@@ -97,9 +134,7 @@ class StorageService:
     def resolve_tender_document(
         self, company_id: str, tender_id: str, stored_filename: str
     ) -> Path:
-        if not TENDER_ID_RE.match(tender_id) or not stored_filename.endswith(".pdf"):
-            raise ValidationError("Invalid stored tender document reference.")
-        if not STORED_NAME_RE.match(stored_filename):
+        if not TENDER_ID_RE.match(tender_id) or not STORED_NAME_RE.match(stored_filename):
             raise ValidationError("Invalid stored tender document reference.")
         folder = (self.root / "companies" / company_id / "tenders" / tender_id).resolve()
         path = (folder / stored_filename).resolve()

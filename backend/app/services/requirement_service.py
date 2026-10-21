@@ -9,6 +9,7 @@ on the cited page.
 from __future__ import annotations
 
 import hashlib
+import io
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -36,7 +37,13 @@ from app.repositories.tender_documents import (
     TenderPageRepository,
 )
 from app.repositories.tenders import TenderRepository
+from app.services.agents.gate import check_quote
 from app.services.download import DownloadError, download_pdf
+from app.services.package_extraction import (
+    PackageLimits,
+    inspect_archive,
+    read_member,
+)
 from app.services.pdf_extraction import PdfExtractionError, extract_pdf_pages
 from app.services.ocr import OcrUnavailable, build_ocr
 from app.services.storage import StorageService, sanitize_original_filename
@@ -47,6 +54,8 @@ MAX_EXCERPT_CHARS = 5000
 MAX_TITLE_CHARS = 200
 MAX_OBLIGATION_CHARS = 2000
 MAX_REFERENCE_CHARS = 160
+DOCUMENT_KINDS = {"main", "corrigendum", "boq", "form", "other", "package"}
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg"}
 
 _QUOTE_MAP = str.maketrans(
     {
@@ -176,6 +185,102 @@ def chunk_pages(
     return chunks
 
 
+
+def _mime_for(suffix: str) -> str:
+    """The content type we record for a file taken out of a package."""
+    mapping = {
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".doc": "application/msword",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".xls": "application/vnd.ms-excel",
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".txt": "text/plain",
+        ".csv": "text/csv",
+        ".zip": "application/zip",
+    }
+    return mapping.get(suffix.lower(), "application/octet-stream")
+
+
+def _to_png(content: bytes) -> bytes:
+    """Convert an image to PNG bytes, which is what the OCR callable takes."""
+    from PIL import Image
+
+    with Image.open(io.BytesIO(content)) as image:
+        buffer = io.BytesIO()
+        image.convert("RGB").save(buffer, format="PNG")
+        return buffer.getvalue()
+
+
+def _read_image(content: bytes, ocr) -> dict:
+    """Read one image as a single page, using OCR.
+
+    An image has no text layer, so the page is always labelled as OCR text.
+    """
+    if ocr is None:
+        return {
+            "pages": [],
+            "page_count": 1,
+            "text_page_count": 0,
+            "status": "not_parsed",
+            "error": "OCR is not available on this server, so the image was stored but not read.",
+            "ocr_page_count": 0,
+            "ocr_status": "unavailable",
+            "parse_status": "not_parsed",
+            "parse_reason": "OCR is not available on this server.",
+        }
+    try:
+        png_bytes = _to_png(content)
+    except Exception as exc:  # noqa: BLE001 - a broken image is reported, not raised
+        return {
+            "pages": [],
+            "page_count": 1,
+            "text_page_count": 0,
+            "status": "failed",
+            "error": f"The image could not be read: {exc}",
+            "ocr_page_count": 0,
+            "ocr_status": "failed",
+            "parse_status": "not_parsed",
+            "parse_reason": f"The image could not be read: {exc}",
+        }
+    try:
+        text = (ocr(png_bytes) or "").strip()
+    except Exception as exc:  # noqa: BLE001 - OCR failure is reported, not raised
+        return {
+            "pages": [],
+            "page_count": 1,
+            "text_page_count": 0,
+            "status": "failed",
+            "error": f"OCR failed on the image: {exc}",
+            "ocr_page_count": 0,
+            "ocr_status": "failed",
+            "parse_status": "not_parsed",
+            "parse_reason": "OCR failed on the image.",
+        }
+    has_text = bool(text)
+    return {
+        "pages": [
+            {
+                "page_index": 1,
+                "printed_label": "1",
+                "text": text,
+                "char_count": len(text),
+                "has_text": has_text,
+                "text_source": "ocr" if has_text else "empty",
+            }
+        ],
+        "page_count": 1,
+        "text_page_count": 1 if has_text else 0,
+        "status": "extracted" if has_text else "no_text_layer",
+        "error": None if has_text else "OCR found no readable text in the image.",
+        "ocr_page_count": 1 if has_text else 0,
+        "ocr_status": "applied" if has_text else "failed",
+        "parse_status": "parsed",
+        "parse_reason": None,
+    }
+
 class RequirementService:
     def __init__(
         self,
@@ -218,11 +323,65 @@ class RequirementService:
         source_url: str | None = None,
         source: str = "uploaded",
     ) -> dict:
+        """Store one tender document: a PDF, an image, or a ZIP package."""
         self._tender(tender_id, company_id)
 
+        suffix = Path(sanitize_original_filename(filename)).suffix.lower()
+        if suffix == ".zip":
+            return self.upload_package(
+                tender_id=tender_id,
+                company_id=company_id,
+                user_id=user_id,
+                filename=filename,
+                content_type=content_type,
+                content=content,
+                kind=kind,
+                title=title,
+                source_url=source_url,
+                source=source,
+            )
+
         suffix, mime_type = self.storage.validate(filename, content_type, content)
-        if suffix != ".pdf":
-            raise ValidationError("Tender documents must be PDF files.")
+        if suffix != ".pdf" and suffix not in IMAGE_SUFFIXES:
+            raise ValidationError("Tender documents must be PDF, PNG or JPG files.")
+
+        return self._store_document(
+            tender_id=tender_id,
+            company_id=company_id,
+            user_id=user_id,
+            content=content,
+            original=sanitize_original_filename(filename),
+            suffix=suffix,
+            mime_type=mime_type,
+            kind=kind,
+            title=title,
+            source=source,
+            source_url=source_url,
+        )
+
+    def upload_package(
+        self,
+        *,
+        tender_id: str,
+        company_id: str,
+        user_id: str,
+        filename: str | None,
+        content_type: str | None,
+        content: bytes,
+        kind: str,
+        title: str | None,
+        source_url: str | None = None,
+        source: str = "uploaded",
+    ) -> dict:
+        """Store a tender package (a ZIP) and expand it into documents.
+
+        The archive itself is kept as the record of what was received. Every
+        file that may be stored becomes its own document, so requirements can
+        cite the file they came from. Files that are not allowed are reported
+        with the reason; nothing is dropped silently.
+        """
+        self._tender(tender_id, company_id)
+        suffix, mime_type = self.storage.validate_package(filename, content_type, content)
 
         sha256 = hashlib.sha256(content).hexdigest()
         existing = self.documents.find_by_hash(company_id, tender_id, sha256)
@@ -231,7 +390,155 @@ class RequirementService:
 
         original = sanitize_original_filename(filename)
         stored_filename, path = self.storage.save_tender_document(
-            company_id, tender_id, content
+            company_id, tender_id, content, ".zip"
+        )
+        limits = PackageLimits.from_settings(self.settings)
+        inspection = inspect_archive(content, limits=limits)
+
+        try:
+            package = self.documents.create(
+                {
+                    "company_id": company_id,
+                    "tender_id": tender_id,
+                    "kind": "package",
+                    "title": _trim(title, MAX_TITLE_CHARS)
+                    or Path(original).stem[:MAX_TITLE_CHARS],
+                    "original_filename": original,
+                    "stored_filename": stored_filename,
+                    "mime_type": mime_type,
+                    "size_bytes": len(content),
+                    "sha256": sha256,
+                    "source": "downloaded" if source == "downloaded" else "uploaded",
+                    "source_url": _trim(source_url, 2000),
+                    "retrieved_at": utcnow(),
+                    "status": "extracted",
+                    "page_count": 0,
+                    "text_page_count": 0,
+                    "ocr_page_count": 0,
+                    "ocr_status": "not_needed",
+                    "truncated": False,
+                    "error": inspection.error,
+                    "parse_status": "container",
+                    "parse_reason": inspection.error,
+                    "is_container": True,
+                    "parent_document_id": None,
+                    "archive_path": None,
+                    "package_summary": {
+                        "total": len(inspection.members) + len(inspection.skipped),
+                        "stored": len(inspection.accepted),
+                        "skipped": len(inspection.skipped),
+                        "members": [],
+                        "skipped_files": [
+                            {"path": member.path, "reason": member.reason}
+                            for member in inspection.skipped
+                        ],
+                    },
+                }
+            )
+        except Exception:
+            if path.exists():
+                path.unlink()
+            raise
+
+        members: list[dict] = []
+        for member in inspection.accepted:
+            entry: dict = {
+                "path": member.path,
+                "title": member.title,
+                "kind": member.kind,
+                "category": member.category,
+                "size_bytes": member.size,
+                "stored": True,
+                "reason": None,
+                "document_id": None,
+                "status": None,
+                "page_count": 0,
+            }
+            try:
+                data = read_member(content, member, limits=limits)
+            except ValueError as exc:
+                entry["stored"] = False
+                entry["reason"] = str(exc)
+                members.append(entry)
+                continue
+            try:
+                child = self._store_document(
+                    tender_id=tender_id,
+                    company_id=company_id,
+                    user_id=user_id,
+                    content=data,
+                    original=Path(member.path).name,
+                    suffix=member.suffix,
+                    mime_type=_mime_for(member.suffix),
+                    kind=member.kind,
+                    title=member.title,
+                    source=source,
+                    source_url=source_url,
+                    parent_document_id=package["id"],
+                    archive_path=member.path,
+                )
+            except Exception as exc:  # noqa: BLE001 - one bad file must not stop the package
+                entry["stored"] = False
+                entry["reason"] = f"The file could not be read: {exc}"
+            else:
+                entry["document_id"] = child["id"]
+                entry["status"] = child.get("status")
+                entry["page_count"] = child.get("page_count", 0)
+            members.append(entry)
+
+        summary = {
+            "total": len(inspection.members) + len(inspection.skipped),
+            "stored": sum(1 for entry in members if entry["stored"]),
+            "skipped": len(inspection.skipped)
+            + sum(1 for entry in members if not entry["stored"]),
+            "members": members,
+            "skipped_files": [
+                {"path": member.path, "reason": member.reason}
+                for member in inspection.skipped
+            ],
+        }
+        self.documents.update(package["id"], company_id, {"package_summary": summary})
+
+        self.audit.log(
+            company_id=company_id,
+            actor_user_id=user_id,
+            action="tender_package.uploaded",
+            entity_type="tender_document",
+            entity_id=package["id"],
+            metadata={
+                "tender_id": tender_id,
+                "filename": original,
+                "members": summary["stored"],
+                "skipped": summary["skipped"],
+            },
+        )
+        return {**package, "package_summary": summary}
+
+    def _store_document(
+        self,
+        *,
+        tender_id: str,
+        company_id: str,
+        user_id: str,
+        content: bytes,
+        original: str,
+        suffix: str,
+        mime_type: str,
+        kind: str,
+        title: str | None,
+        source: str = "uploaded",
+        source_url: str | None = None,
+        parent_document_id: str | None = None,
+        archive_path: str | None = None,
+    ) -> dict:
+        """Store one file as a tender document and read its pages."""
+        sha256 = hashlib.sha256(content).hexdigest()
+        existing = self.documents.find_by_hash(company_id, tender_id, sha256)
+        if existing:
+            return existing
+
+        stored_filename, path = self.storage.save_tender_document(
+            company_id, tender_id, content, suffix
         )
 
         page_rows: list[dict] = []
@@ -242,6 +549,8 @@ class RequirementService:
         error: str | None = None
         ocr_page_count = 0
         ocr_status = "disabled" if not self.settings.ocr_enabled else "not_needed"
+        parse_status = "parsed"
+        parse_reason: str | None = None
         ocr = None
         if self.settings.ocr_enabled:
             try:
@@ -253,49 +562,68 @@ class RequirementService:
             except OcrUnavailable:
                 ocr_status = "unavailable"
 
-        try:
-            extraction = extract_pdf_pages(
-                content,
-                max_pages=self.settings.pdf_max_pages,
-                ocr=ocr,
-                ocr_dpi=self.settings.ocr_dpi,
-                ocr_max_pages=self.settings.ocr_max_pages,
-            )
-            page_count = extraction.page_count
-            text_page_count = extraction.text_page_count
-            truncated = extraction.truncated
-            status = extraction.status
-            ocr_page_count = extraction.ocr_page_count
-            if self.settings.ocr_enabled and ocr is not None:
-                if ocr_page_count and (extraction.ocr_failed_pages or extraction.ocr_skipped_pages):
-                    ocr_status = "partial"
-                elif ocr_page_count:
-                    ocr_status = "applied"
-                elif text_page_count < page_count:
-                    ocr_status = "failed"
-            for page in extraction.pages:
-                page_rows.append(
-                    {
-                        "page_index": page.page_index,
-                        "printed_label": page.printed_label,
-                        "text": page.text,
-                        "char_count": page.char_count,
-                        "has_text": page.has_text,
-                        "text_source": page.text_source,
-                    }
+        if suffix == ".pdf":
+            try:
+                extraction = extract_pdf_pages(
+                    content,
+                    max_pages=self.settings.pdf_max_pages,
+                    ocr=ocr,
+                    ocr_dpi=self.settings.ocr_dpi,
+                    ocr_max_pages=self.settings.ocr_max_pages,
                 )
-        except PdfExtractionError as exc:
-            status = "failed"
-            error = str(exc)
-            page_rows = []
+                page_count = extraction.page_count
+                text_page_count = extraction.text_page_count
+                truncated = extraction.truncated
+                status = extraction.status
+                ocr_page_count = extraction.ocr_page_count
+                if self.settings.ocr_enabled and ocr is not None:
+                    if ocr_page_count and (
+                        extraction.ocr_failed_pages or extraction.ocr_skipped_pages
+                    ):
+                        ocr_status = "partial"
+                    elif ocr_page_count:
+                        ocr_status = "applied"
+                    elif text_page_count < page_count:
+                        ocr_status = "failed"
+                for page in extraction.pages:
+                    page_rows.append(
+                        {
+                            "page_index": page.page_index,
+                            "printed_label": page.printed_label,
+                            "text": page.text,
+                            "char_count": page.char_count,
+                            "has_text": page.has_text,
+                            "text_source": page.text_source,
+                        }
+                    )
+            except PdfExtractionError as exc:
+                status = "failed"
+                error = str(exc)
+                page_rows = []
+        elif suffix in IMAGE_SUFFIXES:
+            image = _read_image(content, ocr)
+            page_rows = image["pages"]
+            page_count = image["page_count"]
+            text_page_count = image["text_page_count"]
+            status = image["status"]
+            error = image["error"]
+            ocr_page_count = image["ocr_page_count"]
+            ocr_status = image["ocr_status"]
+            parse_status = image["parse_status"]
+            parse_reason = image["parse_reason"]
+        else:
+            status = "not_parsed"
+            parse_status = "not_parsed"
+            parse_reason = f"Unsupported format: {suffix or 'unknown'}"
 
         try:
             document = self.documents.create(
                 {
                     "company_id": company_id,
                     "tender_id": tender_id,
-                    "kind": kind if kind in {"main", "corrigendum", "boq", "form", "other"} else "other",
-                    "title": _trim(title, MAX_TITLE_CHARS) or Path(original).stem[:MAX_TITLE_CHARS],
+                    "kind": kind if kind in DOCUMENT_KINDS else "other",
+                    "title": _trim(title, MAX_TITLE_CHARS)
+                    or Path(original).stem[:MAX_TITLE_CHARS],
                     "original_filename": original,
                     "stored_filename": stored_filename,
                     "mime_type": mime_type,
@@ -311,6 +639,11 @@ class RequirementService:
                     "ocr_status": ocr_status,
                     "truncated": truncated,
                     "error": error,
+                    "parse_status": parse_status,
+                    "parse_reason": parse_reason,
+                    "is_container": False,
+                    "parent_document_id": parent_document_id,
+                    "archive_path": archive_path,
                 }
             )
             self.pages.replace_for_document(
@@ -447,20 +780,23 @@ class RequirementService:
         return "\n".join(parts)
 
     def _validate_excerpt(self, requirement: AIRequirement, pages_by_index: dict[int, dict]) -> str | None:
-        """Return a rejection reason, or None when the excerpt is on the cited page."""
-        excerpt = (requirement.excerpt or "").strip()
-        if len(excerpt) < MIN_EXCERPT_CHARS:
-            return "Excerpt is too short to verify."
-        if len(excerpt) > MAX_EXCERPT_CHARS:
-            return "Excerpt is too long to verify."
+        """Return a rejection reason, or None when the excerpt is on the cited page.
+
+        The check itself lives in the deterministic gate, so the tender
+        requirements and anything an agent proposes are judged by exactly the
+        same rule.
+        """
         page = pages_by_index.get(requirement.page_index)
-        if not page:
-            return "The cited page does not exist in this document."
-        if not page.get("has_text"):
-            return "The cited page has no extractable text."
-        if normalize_for_match(excerpt) not in normalize_for_match(page.get("text") or ""):
-            return "The excerpt was not found verbatim on the cited page."
-        return None
+        verdict = check_quote(
+            requirement.excerpt or "",
+            page_text=(page or {}).get("text"),
+            text_source=(page or {}).get("text_source") or "text_layer",
+            min_chars=MIN_EXCERPT_CHARS,
+            max_chars=MAX_EXCERPT_CHARS,
+        )
+        if verdict.status == "verified":
+            return None
+        return verdict.reason
 
     def extract_requirements(
         self,

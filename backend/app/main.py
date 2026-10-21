@@ -34,7 +34,20 @@ async def lifespan(app: FastAPI):
             f"and the database user's password/permissions ({type(exc).__name__})."
         ) from exc
     logger.info("MongoDB connected: %s", database.describe_target())
+
+    runner = None
+    if settings.job_worker_enabled:
+        from app.services.analysis import requirements_step
+        from app.services.job_runner import JobRunner
+
+        runner = JobRunner(database, handlers={"requirements": requirements_step})
+        runner.start_worker(interval_seconds=settings.job_poll_seconds)
+        logger.info("Job worker started.")
+
     yield
+
+    if runner is not None:
+        runner.stop_worker()
 
 
 settings = get_settings()

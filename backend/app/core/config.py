@@ -78,6 +78,20 @@ class Settings(BaseSettings):
     discovery_min_score: float = 0.3
     discovery_cache_hours: int = 24
 
+    # Tender packages (a ZIP that a tender was downloaded as). The archive is
+    # read on the server and expanded into individual documents, under these
+    # limits so a malicious or enormous archive cannot exhaust the server.
+    package_max_upload_mb: int = 200
+    package_max_members: int = 200
+    package_max_member_mb: int = 25
+    package_max_expanded_mb: int = 500
+    package_max_ratio: int = 200
+    package_max_nesting: int = 1
+
+    # The job worker runs queued work (the analysis pipeline) in this process.
+    job_worker_enabled: bool = True
+    job_poll_seconds: float = 2.0
+
     @field_validator("api_prefix")
     @classmethod
     def normalize_prefix(cls, value: str) -> str:

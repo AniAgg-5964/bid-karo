@@ -103,6 +103,10 @@ class Database:
         return self.db["reminders"]
 
     @property
+    def jobs(self):
+        return self.db["jobs"]
+
+    @property
     def audit_logs(self):
         return self.db["audit_logs"]
 

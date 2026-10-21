@@ -145,6 +145,16 @@ Phase 6 verification on 2026-10-20: backend `pytest` 92 passed; frontend `npm te
 
 Known limitations: the review build is local only. There is no hosting, no background scheduler, no Google Calendar OAuth, no live OTP or reminder email without `SMTP_APP_PASSWORD`, and no claim of legal eligibility or autonomous bid submission.
 
+## Phase 7 groundwork: tender packages and the agent spine (verified 2026-10-21)
+
+Two things a tender actually arrives with were missing, and the agent work needed a spine to sit on.
+
+**Tender packages.** A tender is usually published as a ZIP. `services/package_extraction.py` reads such an archive under fixed limits — path traversal refused, per-member size, total expanded size, compression ratio, member count, one level of nesting, executables and scripts never stored — and every refused member is reported with its reason. The archive is kept as a container document and each stored file becomes its own document with its parent and its path inside the archive, so a requirement can cite the file it came from. PDFs are read as before, an image becomes a one-page OCR document, and any other format is stored and marked "not parsed" instead of being silently dropped.
+
+**The agent spine.** `services/agents/gate.py` is the deterministic gate, with no model in it: the quote rule set checks a quote against the page it was cited from, and the grounding rule set checks that a recommendation rests only on clauses that passed the gate and states no figure that is not already in those clauses or in the stored tender record. A failed check keeps the item and its reason. `services/job_runner.py` and the `jobs` collection run the analysis pipeline (`requirements`, `recommendations`, `verification`, `legal_research`) as steps with visible state; a step with no implementation reports "not available yet" and a step that raises fails the job with the error. The requirement extraction moved onto that pipeline, so the tender page can ask for an analysis and watch it.
+
+Verification on 2026-10-21: backend `pytest` 132 passed (9 package tests, 11 gate tests, 6 job tests), frontend `npm test` 22 passed, `npm run build` succeeded. A live package upload of a portal-style archive (RFP, BOQ spreadsheet, scanned notice image, CAD drawing, corrigendum, nested archive, executable, path-traversal entry) stored 5 files and refused 3 with their reasons; the analysis job read 2 documents and produced 24 cited requirements, and the three later steps reported "not available yet".
+
 ## Later-phase guardrails
 
 - Phase 2 is not complete with mocked TinyFish responses.

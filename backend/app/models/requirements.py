@@ -5,9 +5,11 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-DocumentKind = Literal["main", "corrigendum", "boq", "form", "other"]
+DocumentKind = Literal["main", "corrigendum", "boq", "form", "other", "package"]
 DocumentSource = Literal["uploaded", "downloaded"]
-DocumentStatus = Literal["extracted", "no_text_layer", "failed"]
+DocumentStatus = Literal["extracted", "no_text_layer", "failed", "not_parsed"]
+# What the server did with a file.
+ParseStatus = Literal["parsed", "not_parsed", "skipped", "container"]
 OcrStatus = Literal["disabled", "not_needed", "applied", "partial", "failed", "unavailable"]
 TextSource = Literal["text_layer", "ocr", "empty"]
 
@@ -56,8 +58,40 @@ class TenderDocumentOut(BaseModel):
     ocr_status: OcrStatus = "disabled"
     truncated: bool = False
     error: str | None = None
+    # Package support: a tender may arrive as a ZIP that holds several files.
+    parse_status: ParseStatus = "parsed"
+    parse_reason: str | None = None
+    is_container: bool = False
+    parent_document_id: str | None = None
+    archive_path: str | None = None
+    # For a package: what it held, what was read and what was not.
+    package_summary: dict | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class PackageMemberOut(BaseModel):
+    """One file inside a tender package."""
+
+    path: str
+    title: str
+    kind: DocumentKind = "other"
+    category: str = "other"
+    size_bytes: int = 0
+    accepted: bool = True
+    reason: str | None = None
+    document_id: str | None = None
+    status: DocumentStatus | None = None
+    page_count: int = 0
+
+
+class TenderDocumentUploadResponse(BaseModel):
+    """The uploaded document, plus the members of a package when one was uploaded."""
+
+    document: TenderDocumentOut
+    members: list[PackageMemberOut] = Field(default_factory=list)
+    skipped: list[PackageMemberOut] = Field(default_factory=list)
+    summary: dict[str, int | str | None] = Field(default_factory=dict)
 
 
 class TenderDocumentListResponse(BaseModel):

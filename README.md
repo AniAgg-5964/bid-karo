@@ -26,6 +26,8 @@ The defining principle is simple: every tender-specific claim must be traceable 
 - Discovery matching: a tender is listed when the work matches the company's services, sectors or keywords (plain text, with plural and word-order variants) and its closing date is still in the future. The region only decides the order. Every candidate that was not listed is counted with its reason.
 - Tender document workspace: attach a PDF by upload (primary) or attempt a direct public PDF download; page text and printed page labels are extracted with PyMuPDF; SHA-256 dedupe per tender. Pages without a text layer are OCR'd with local English Tesseract (bounded by page count and time), stored with `text_source: ocr`, and flagged for visual review. A PDF that still has no readable text is flagged rather than pretended to be readable.
 - User-triggered requirement extraction: Groq (or Gemini) proposes requirements in JSON, Pydantic validates every item, and deterministic code stores a requirement as `verified` only when its verbatim excerpt is found on the cited page. Mismatches are stored as `unverified` with a reason; nothing is silently dropped.
+- Tender documents: a tender may be uploaded as a single PDF, as an image, or as the **ZIP package** it was published as. A package is read on the server under fixed limits (path traversal refused, size and ratio caps, one nesting level, executables never stored) and expanded into documents, so a requirement can cite the file it came from. Files that are not read are listed with the reason.
+- Analysis pipeline: a tender can be queued for analysis and the job shows its steps — read the document, recommend what to do, check against our records, research official legal sources. Steps that are not implemented yet say so.
 - Requirement review: filter by category, verification state and mandatory flag; view the cited page text; mark requirements verified, rejected or needing review. Every review is audited.
 - Deterministic suitability score: profile fit, citation verification, confirmed mandatory evidence coverage and document readiness, computed in Python with visible weights and reasons. The soft score never hides a failed or unknown mandatory gate.
 - Mandatory eligibility: `Pass` / `Fail` / `Unknown` for each gating requirement. `Pass` needs a verified citation plus human-confirmed, non-expired evidence; missing or unknown evidence stays `Unknown`.
@@ -277,7 +279,7 @@ npm test
 npm run build
 ```
 
-Backend tests use `mongomock` and a fake email service; they need no live MongoDB, TinyFish or Gmail account. Current local result: 106 backend tests and 22 frontend tests pass, and the production build succeeds.
+Backend tests use `mongomock` and a fake email service; they need no live MongoDB, TinyFish or Gmail account. Current local result: 132 backend tests and 22 frontend tests pass, and the production build succeeds.
 
 ## Design constraints
 

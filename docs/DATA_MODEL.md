@@ -182,12 +182,36 @@ Latest deterministic snapshot per tender: `company_id`, `tender_id`, serialized 
 Indexes: unique `(company_id, tender_id)`.
 
 ### `checklist_tasks`
-
 Tender-specific actions with `company_id`, `tender_id`, `requirement_id`, `title`, `category`, `phase` (`pre_award` or `post_award`), `trigger_type`, `action`, `acceptance_criteria`, `evidence_check`, `issuer`, `signatory`, `deadline_text`, `trigger`, `consequence`, `source_document_title`, `page_index`, `printed_page`, `clause_reference`, `excerpt`, `source_url`, `source_retrieved_at`, `status`, `owner`, `due_at`, timestamps.
 
 Tasks created before Phase 5 have no `phase`; queries treat them as `pre_award` via an `$or` condition, so no destructive migration is needed.
 
 Indexes: `(company_id, due_at)`, `(company_id, tender_id, requirement_id)`.
+
+## Phase 7 collections
+
+### `jobs`
+
+One row per queued piece of work, with its steps. Fields: `company_id`, `kind` (`package_ingest`, `tender_analysis`, `legal_research`), `status` (`queued`, `running`, `done`, `failed`), `tender_id`, `document_id`, `payload`, `steps` (each with `key`, `label`, `status` (`pending`, `running`, `done`, `failed`, `skipped`), `started_at`, `finished_at`, `error`, `summary`), `error`, `started_at`, `finished_at`, timestamps.
+
+A step that has no implementation records `skipped` with "This step is not available yet." A step that raises records `failed` with the error and the job fails. Jobs are scoped to a company like everything else.
+
+### Tender document packages
+
+`tender_documents` gains `kind: package`, `is_container`, `parent_document_id`, `archive_path`, `parse_status` (`parsed`, `not_parsed`, `skipped`, `container`), `parse_reason` and `package_summary`.
+
+A package document is the archive itself. Its `package_summary` holds what it held, what was stored and read, and what was refused with the reason:
+
+```json
+{ "total": 8, "stored": 5, "skipped": 3,
+  "members": [ { "path": "NIT/BOQ Schedule.xlsx", "title": "BOQ Schedule",
+                 "kind": "boq", "status": "not_parsed", "page_count": 0,
+                 "document_id": "…", "stored": true, "reason": null } ],
+  "skipped_files": [ { "path": "install.exe",
+                       "reason": "Executables and scripts are never stored." } ] }
+```
+
+Each stored file is also a `tender_documents` row with `parent_document_id` pointing at the package, so a requirement can cite the file it came from.
 
 ## Phase 5 collections
 
