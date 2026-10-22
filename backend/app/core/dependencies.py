@@ -15,7 +15,9 @@ from app.repositories.companies import CompanyRepository
 from app.services.discovery_service import DiscoveryService
 from app.services.email import EmailService
 from app.services.requirement_service import RequirementService
+from app.services.embeddings import EmbeddingProvider, build_embedding_provider
 from app.services.storage import StorageService
+from app.services.vector_store import QdrantVectorStore, build_vector_store
 
 settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_prefix}/auth/login")
@@ -44,6 +46,17 @@ def get_discovery_service(
 
 def get_ai_provider() -> AIProvider:
     return build_ai_provider()
+
+
+@lru_cache
+def get_embedding_provider() -> EmbeddingProvider:
+    return build_embedding_provider()
+
+
+@lru_cache
+def get_vector_store() -> QdrantVectorStore | None:
+    """The vector store, or None when it is switched off."""
+    return build_vector_store()
 
 
 def get_requirement_service(

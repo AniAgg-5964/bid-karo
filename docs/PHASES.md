@@ -177,6 +177,16 @@ Verification on 2026-10-21: backend `pytest` 144 passed (12 agent tests), fronte
 
 Known limits, stated honestly: the legal assistant can reach official pages, but many statute pages are scans or PDF-only portals the fetcher cannot read, so it often cites the page with an honest note rather than the provision text; the model rate-limits on the free tier, so the agent prompts are trimmed and the provider is retried with a longer backoff; and the job worker still runs inside the API process, so a large package or a long model call can block it. Moving the worker to its own process and streaming uploads to disk are the next hardening steps.
 
+## Qdrant integration, Phase 0 and Phase 1 (verified 2026-10-22)
+
+**Phase 0 - repository assessment.** `docs/QDRANT_INTEGRATION.md` maps every existing module that is reused, extended or added, and lists the environment findings: Python 3.14 (so `qdrant-client` 1.19, `model2vec` and `numpy` resolve, while `fastembed`'s ONNX runtime has no 3.14 wheel), Docker installed but its daemon not running, and a free embedding model that needs a one-off download.
+
+**Phase 1 - local Qdrant.** `docker-compose.yml` pins Qdrant to the same version as the client, `scripts/qdrant-dev.ps1` starts, stops and checks the store (Docker Compose, with a standalone-binary fallback when the daemon is not running), and the backend gained `services/vector_store.py` and `services/embeddings.py`. The embedding dimension comes from the provider, never from a constant. The store is an index: the documents, requirements, decisions and results stay in MongoDB and on disk. Qdrant being unavailable is reported, never raised: the application starts, the health endpoint shows `vector_store: unavailable`, and retrieval returns an honest failure.
+
+Verification on 2026-10-22: backend `pytest` 161 passed (17 new tests for the embeddings, the store and the knowledge endpoints), frontend `npm test` 22 passed, `npm run build` succeeded. A local Qdrant 1.19.1 was started and the backend created the `bidkaro_knowledge` collection with the provider's dimension (384 for the hashing provider) and reported it through `/api/knowledge/health` and `/api/knowledge/collection`.
+
+One defect was found and fixed on the way: the assessment test compared an expiry against the local date while the code compares it against UTC, so it failed in the hour between local and UTC midnight. The test now uses the server's clock.
+
 ## Later-phase guardrails
 
 - Phase 2 is not complete with mocked TinyFish responses.

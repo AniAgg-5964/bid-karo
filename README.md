@@ -267,6 +267,45 @@ $env:MONGODB_DB='bidkaro'
 
 It produces 21 verified source-cited requirements, 15 pre-award tasks, 5 cited post-award obligations, 6 active reminders, a baseline snapshot and a deterministic assessment (score 74 / moderate, eligibility `unknown`). The demo account is `asha.phase1@example.com` with the local password used by the project owner. See [`demo/README.md`](demo/README.md) for the walkthrough script and video notes.
 
+## Local Qdrant (retrieval index)
+
+Qdrant holds the **retrieval index only**. The documents, the requirements, the evidence decisions and the eligibility results stay in MongoDB, and the original files stay on disk, so the index can be wiped and rebuilt at any time.
+
+```powershell
+# Start it (Docker Compose, or the standalone binary when Docker is not running)
+.\scripts\qdrant-dev.ps1 start
+.\scripts\qdrant-dev.ps1 status
+.\scripts\qdrant-dev.ps1 stop
+```
+
+The compose file pins the same Qdrant version as the client in `backend/requirements.txt`, because the client checks the server version and warns on a mismatch.
+
+Configuration (`.env`):
+
+```text
+QDRANT_ENABLED=true
+QDRANT_URL=http://127.0.0.1:6333
+QDRANT_API_KEY=
+QDRANT_COLLECTION_NAME=bidkaro_knowledge
+EMBEDDING_PROVIDER=hashing
+EMBEDDING_MODEL=
+EMBEDDING_DIMENSION=0
+```
+
+- `EMBEDDING_PROVIDER=hashing` is deterministic, downloads nothing and costs nothing. It behaves like a lexical vectoriser: exact on wording, weak on meaning.
+- `EMBEDDING_PROVIDER=model2vec` uses a small local semantic model that is downloaded once (~30 MB, free to run).
+- `EMBEDDING_DIMENSION=0` means "use the provider's own dimension". The dimension is never a constant chosen for an assumed provider.
+
+Check the state of the stack at any time:
+
+```text
+GET /api/health              -> database and vector_store
+GET /api/knowledge/health    -> the store, the collection and the embedding model
+GET /api/knowledge/collection -> creates the collection if it is missing
+```
+
+When Qdrant is not running the application still starts and still serves everything else; retrieval reports itself as unavailable rather than failing the request.
+
 ## Tests
 
 ```powershell
@@ -281,7 +320,7 @@ npm test
 npm run build
 ```
 
-Backend tests use `mongomock` and a fake email service; they need no live MongoDB, TinyFish or Gmail account. Current local result: 144 backend tests and 22 frontend tests pass, and the production build succeeds.
+Backend tests use `mongomock` and a fake email service; they need no live MongoDB, TinyFish or Gmail account. Current local result: 161 backend tests and 22 frontend tests pass, and the production build succeeds.
 
 ## Design constraints
 

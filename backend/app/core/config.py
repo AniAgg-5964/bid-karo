@@ -92,6 +92,30 @@ class Settings(BaseSettings):
     job_worker_enabled: bool = True
     job_poll_seconds: float = 2.0
 
+    # Vector store (Qdrant) for semantic retrieval over the company and tender
+    # documents. Qdrant is an index: the documents, the requirements and the
+    # decisions stay in MongoDB and on disk.
+    qdrant_enabled: bool = True
+    qdrant_url: str = "http://127.0.0.1:6333"
+    qdrant_api_key: str = ""
+    qdrant_collection_name: str = "bidkaro_knowledge"
+    qdrant_timeout_seconds: int = 10
+    qdrant_vector_size: int = 0  # 0 means "ask the embedding provider"
+
+    # Embeddings. The provider decides the dimension; it is never hardcoded
+    # from an assumed provider.
+    embedding_provider: str = "hashing"
+    embedding_model: str = ""
+    embedding_dimension: int = 0  # 0 means the provider's own dimension
+    embedding_batch_size: int = 32
+
+    # Retrieval and ingestion limits.
+    chunk_max_chars: int = 1200
+    chunk_overlap_chars: int = 150
+    chunk_max_per_document: int = 2000
+    retrieval_top_k: int = 8
+    retrieval_min_score: float = 0.0
+
     # The agent steps. Legal research is bounded because it reads the web and
     # asks a model for every clause it covers.
     legal_research_max_clauses: int = 3

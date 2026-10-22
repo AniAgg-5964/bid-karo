@@ -106,7 +106,7 @@ def test_expired_or_contradicted_evidence_never_passes(
         tender["company_id"],
         title="Expired ISO 9001 certificate",
         document_type="certificate",
-        expiry_date=date.today() - timedelta(days=1),
+        expiry_date=datetime.now(timezone.utc).date() - timedelta(days=1),
         notes="ISO 9001 quality certificate",
     )
     requirement = make_requirement(

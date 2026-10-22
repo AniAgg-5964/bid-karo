@@ -11,6 +11,7 @@ from app.api.routes import (
     discovery,
     documents,
     health,
+    knowledge,
     tender_documents,
     tenders,
     workflow,
@@ -18,6 +19,7 @@ from app.api.routes import (
 
 api_router = APIRouter()
 api_router.include_router(health.router)
+api_router.include_router(knowledge.router)
 api_router.include_router(auth.router)
 api_router.include_router(companies.router)
 api_router.include_router(documents.router)

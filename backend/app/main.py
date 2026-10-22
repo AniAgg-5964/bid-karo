@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -34,6 +35,31 @@ async def lifespan(app: FastAPI):
             f"and the database user's password/permissions ({type(exc).__name__})."
         ) from exc
     logger.info("MongoDB connected: %s", database.describe_target())
+
+    # The vector store is an index, not a dependency: if Qdrant is not running
+    # the application still starts and says so in its health output. The probe
+    # runs in the background so it can never delay the startup.
+    if settings.qdrant_enabled:
+        def _probe_vector_store() -> None:
+            try:
+                import httpx
+
+                response = httpx.get(
+                    f"{settings.qdrant_url.rstrip('/')}/readyz", timeout=3.0
+                )
+                logger.info(
+                    "Vector store at %s: %s",
+                    settings.qdrant_url,
+                    "ok" if response.status_code == 200 else f"http {response.status_code}",
+                )
+            except Exception as exc:  # noqa: BLE001 - the store must not stop the app
+                logger.warning(
+                    "Vector store at %s is not available: %s", settings.qdrant_url, exc
+                )
+
+        threading.Thread(
+            target=_probe_vector_store, name="bidkaro-vector-probe", daemon=True
+        ).start()
 
     runner = None
     if settings.job_worker_enabled:
