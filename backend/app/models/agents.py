@@ -71,6 +71,7 @@ class LegalSourceOut(BaseModel):
     source_class: str = "central_official"
     section: str | None = None
     retrieved_at: datetime
+    read_from: str | None = None
     applies_to_us: str | None = None
     must_hold: list[str] = Field(default_factory=list)
     gap: str | None = None

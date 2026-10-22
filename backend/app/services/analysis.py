@@ -61,6 +61,46 @@ def _verified_requirements(db: Database, company_id: str, tender_id: str) -> lis
     ]
 
 
+def _retrieval(db: Database, company_id: str, tender_id: str | None = None):
+    """The retrieval service, or None when the index is not available."""
+    from app.services.embeddings import build_embedding_provider
+    from app.services.retrieval import RetrievalService
+    from app.services.vector_store import build_vector_store
+
+    settings = get_settings()
+    if not settings.qdrant_enabled:
+        return None
+    service = RetrievalService(
+        db,
+        build_embedding_provider(settings),
+        build_vector_store(settings),
+        settings=settings,
+    )
+    try:
+        if service.store is None or not service.embeddings.available:
+            return None
+    except Exception:  # noqa: BLE001 - the index is optional
+        return None
+    return service
+
+
+def _legal_memory(db: Database):
+    """The memory of the official pages we have read."""
+    from app.services.embeddings import build_embedding_provider
+    from app.services.legal_memory import LegalMemory
+    from app.services.vector_store import build_vector_store
+
+    settings = get_settings()
+    if not settings.qdrant_enabled:
+        return None
+    return LegalMemory(
+        db,
+        build_embedding_provider(settings),
+        build_vector_store(settings),
+        settings=settings,
+    )
+
+
 def _tender_context(db: Database, tender_id: str, company_id: str) -> dict:
     tender = TenderRepository(db).find_for_company(tender_id, company_id)
     if not tender:
@@ -180,6 +220,31 @@ def recommendations_step(context: JobContext) -> dict:
         raise ValueError("The job has no tender to analyse.")
 
     state = _tender_context(context.db, tender_id, company_id)
+    retrieval = _retrieval(context.db, company_id, tender_id)
+    clause_passages: dict = {}
+    evidence_passages: list = []
+    if retrieval is not None:
+        from app.services.agent_context import clause_passages as read_clauses
+        from app.services.agent_context import evidence_passages as read_evidence
+        from app.services.agent_context import format_clause_context, format_evidence_context
+
+        clause_passages = read_clauses(
+            retrieval,
+            company_id=company_id,
+            tender_id=tender_id,
+            requirements=state["requirements"],
+        )
+        evidence_passages = read_evidence(
+            retrieval,
+            company_id=company_id,
+            requirements=state["requirements"],
+        )
+        clause_context = format_clause_context(clause_passages)
+        evidence_context = format_evidence_context(evidence_passages)
+    else:
+        clause_context = ""
+        evidence_context = ""
+
     recommender = Recommender(build_ai_provider(settings))
     proposals = recommender.propose(
         tender=state["tender"],
@@ -188,6 +253,8 @@ def recommendations_step(context: JobContext) -> dict:
         company_documents=state["documents"],
         evidence_decisions=state["decisions"],
         deadline=state["deadline"],
+        clause_context=clause_context,
+        evidence_context=evidence_context,
     )
     repository = RecommendationRepository(context.db)
     stored = repository.replace_for_tender(
@@ -210,6 +277,8 @@ def recommendations_step(context: JobContext) -> dict:
         "proposed": len(stored),
         "grounded": grounded,
         "rejected": len(stored) - grounded,
+        "clauses_read_from_index": len(clause_passages),
+        "evidence_passages": len(evidence_passages),
     }
 
 
@@ -228,6 +297,20 @@ def verification_step(context: JobContext) -> dict:
         tender_id=tender_id, company=state["company"]
     )
     items = [item.model_dump() for item in assessment.eligibility.items]
+    retrieval = _retrieval(context.db, company_id, tender_id)
+    evidence_context = ""
+    if retrieval is not None:
+        from app.services.agent_context import evidence_passages as read_evidence
+        from app.services.agent_context import format_evidence_context
+
+        evidence_context = format_evidence_context(
+            read_evidence(
+                retrieval,
+                company_id=company_id,
+                requirements=items,
+            )
+        )
+
     verifier = Verifier(build_ai_provider(settings))
     proposals = verifier.verify(
         tender=state["tender"],
@@ -235,6 +318,7 @@ def verification_step(context: JobContext) -> dict:
         eligibility_items=items,
         company_documents=state["documents"],
         deadline=state["deadline"],
+        evidence_context=evidence_context,
     )
     repository = RecommendationRepository(context.db)
     stored = repository.replace_for_tender(
@@ -285,9 +369,11 @@ def legal_research_step(context: JobContext) -> dict:
         ai=build_ai_provider(settings),
         client=TinyFishClient.from_settings(settings),
     )
+    memory = _legal_memory(context.db)
     repository = LegalSourceRepository(context.db)
     found = 0
     refused = 0
+    from_memory = 0
     for requirement in candidates:
         try:
             provisions = researcher.research(
@@ -295,6 +381,7 @@ def legal_research_step(context: JobContext) -> dict:
                 tender=state["tender"],
                 requirement=requirement,
                 company_documents=state["documents"],
+                memory=memory,
                 retrieved_at=datetime.now(tz=timezone.utc),
             )
         except Exception as exc:  # noqa: BLE001 - one clause must not stop the step
@@ -317,10 +404,16 @@ def legal_research_step(context: JobContext) -> dict:
             ],
         )
         found += len(provisions)
+        from_memory += sum(
+            1
+            for provision in provisions
+            if "stored reading" in (provision.get("read_from") or "")
+        )
     return {
         "clauses": len(candidates),
         "provisions": found,
         "clauses_not_read": refused,
+        "read_from_memory": from_memory,
     }
 
 

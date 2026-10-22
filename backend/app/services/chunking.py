@@ -228,6 +228,53 @@ def _tail(text: str, count: int) -> str:
     return " ".join(words[-count:])
 
 
+def _split_long_block(block: Block, max_words: int, max_chars: int) -> list[Block]:
+    """Break a block that is too big into pieces that fit.
+
+    A PDF often writes a whole paragraph as one long line. Without this, that
+    paragraph would become one oversized passage, which is a poor unit to
+    search and a poor unit to quote. The split is at a sentence end where
+    there is one, and at a word boundary where there is not.
+    """
+    text = block.text
+    if _words(text) <= max_words and len(text) <= max_chars:
+        return [block]
+
+    pieces: list[Block] = []
+    remaining = text
+    offset = block.start
+    while remaining:
+        if _words(remaining) <= max_words and len(remaining) <= max_chars:
+            take = remaining
+            remaining = ""
+        else:
+            window = remaining[:max_chars]
+            cut = window.rfind(". ")
+            if cut == -1:
+                cut = window.rfind("; ")
+            if cut == -1:
+                cut = window.rfind(", ")
+            if cut == -1:
+                # No sentence end: cut on a word boundary.
+                cut = window.rfind(" ")
+            if cut <= 0:
+                cut = min(max_chars, len(remaining))
+            take = remaining[: cut + 1]
+            remaining = remaining[cut + 1 :]
+        piece = Block(
+            text=take.strip(),
+            kind=block.kind,
+            start=offset,
+            end=offset + len(take),
+            clause_number=block.clause_number,
+            heading=block.heading,
+        )
+        offset += len(take)
+        if piece.text:
+            pieces.append(piece)
+    return pieces or [block]
+
+
 def chunk_page(
     page_index: int,
     printed_page: str,
@@ -279,31 +326,32 @@ def chunk_page(
         buffer_words = 0
 
     for block in blocks:
-        if block.kind == "heading":
-            # A heading starts a new passage: a passage must not mix sections.
-            close()
-            current_heading = block.heading or block.text
-            current_clause = block.clause_number
-            buffer = [block]
-            buffer_words = _words(block.text)
-            close()
-            continue
-
-        if block.kind == "clause":
-            if buffer:
+        for piece in _split_long_block(block, max_words, max_chars):
+            if piece.kind == "heading":
+                # A heading starts a new passage: a passage must not mix sections.
                 close()
-            current_clause = block.clause_number
-            if block.heading:
-                current_heading = block.heading
+                current_heading = piece.heading or piece.text
+                current_clause = piece.clause_number
+                buffer = [piece]
+                buffer_words = _words(piece.text)
+                close()
+                continue
 
-        block_words = _words(block.text)
-        if buffer and (
-            buffer_words + block_words > max_words
-            or sum(len(item.text) for item in buffer) + len(block.text) > max_chars
-        ):
-            close()
-        buffer.append(block)
-        buffer_words += block_words
+            if piece.kind == "clause":
+                if buffer:
+                    close()
+                current_clause = piece.clause_number
+                if piece.heading:
+                    current_heading = piece.heading
+
+            piece_words = _words(piece.text)
+            if buffer and (
+                buffer_words + piece_words > max_words
+                or sum(len(item.text) for item in buffer) + len(piece.text) > max_chars
+            ):
+                close()
+            buffer.append(piece)
+            buffer_words += piece_words
 
     close()
     return passages

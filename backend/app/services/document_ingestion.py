@@ -43,6 +43,7 @@ from app.services.vector_store import (
     VectorStoreError,
     VectorStoreUnavailable,
     iter_batches,
+    point_id,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,22 +53,12 @@ SCOPE_TENDER = "tender"
 SCOPE_COMPANY = "company_evidence"
 SCOPE_REFERENCE = "legal_reference"
 
-# A namespace for the deterministic point ids.
-POINT_NAMESPACE = uuid.UUID("6f1a1b8e-0b6f-4a3f-9b4a-2f5f6d7c8b90")
-
-
 class IngestionError(RuntimeError):
     """Indexing could not be completed."""
 
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
-
-
-def _point_id(document_id: str, hash_value: str, chunk_index: int) -> str:
-    """A deterministic point id, so re-indexing overwrites rather than adds."""
-    name = f"{document_id}:{hash_value}:{chunk_index}"
-    return str(uuid.uuid5(POINT_NAMESPACE, name))
 
 
 class DocumentIngestionService:
@@ -345,10 +336,12 @@ class DocumentIngestionService:
             vectors = self.embeddings.embed([passage.embedding_text for passage in batch])
             points: list[VectorPoint] = []
             for passage, vector in zip(batch, vectors):
-                point_id = _point_id(str(payload_base["document_id"]), hash_value, passage.chunk_index)
+                chunk_id = point_id(
+                    str(payload_base["document_id"]), hash_value, passage.chunk_index
+                )
                 payload = {
                     **payload_base,
-                    "chunk_id": point_id,
+                    "chunk_id": chunk_id,
                     "chunk_index": passage.chunk_index,
                     "page_index": passage.page_index,
                     "printed_page": passage.printed_page,
@@ -364,7 +357,7 @@ class DocumentIngestionService:
                     "indexed_at": indexed_at.isoformat(),
                     "text_source": self._text_source(passage),
                 }
-                points.append(VectorPoint(id=point_id, vector=list(vector), payload=payload))
+                points.append(VectorPoint(id=chunk_id, vector=list(vector), payload=payload))
             self.store.upsert_points(points)  # type: ignore[union-attr]
             written += len(points)
         return written

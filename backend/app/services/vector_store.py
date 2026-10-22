@@ -16,6 +16,7 @@ Two rules shape the code:
 from __future__ import annotations
 
 import logging
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Sequence
 
@@ -24,6 +25,20 @@ from app.core.config import Settings, get_settings
 logger = logging.getLogger(__name__)
 
 DISTANCE_COSINE = "Cosine"
+
+# The namespace for the deterministic point ids.
+POINT_NAMESPACE = uuid.UUID("6f1a1b8e-0b6f-4a3f-9b4a-2f5f6d7c8b90")
+
+
+def point_id(*parts: str) -> str:
+    """A deterministic point id.
+
+    The same parts always give the same id, so re-indexing the same content
+    overwrites the same points instead of adding a second copy. Qdrant only
+    accepts an unsigned integer or a UUID, so the id is a UUID built from the
+    parts.
+    """
+    return str(uuid.uuid5(POINT_NAMESPACE, ":".join(str(part) for part in parts)))
 
 
 class VectorStoreUnavailable(RuntimeError):

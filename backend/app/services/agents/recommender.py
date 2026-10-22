@@ -3,7 +3,9 @@
 The model proposes. The deterministic gate disposes. A human confirms.
 
 The model is given the tender's verified clauses, the company's own profile
-and the evidence it already holds, and it may only answer from those. The
+and the evidence it already holds, and it may only answer from those. It is
+also given the passages our index found for those clauses: the tender's own
+words around the clause, and what our own certificates actually say. The
 grounding gate then checks that every proposal rests on a clause we actually
 hold and introduces no figure that is not already in that clause or in the
 tender record. A proposal that fails keeps its reason; it is never quietly
@@ -81,6 +83,13 @@ Evidence the company already holds:
 
 Clauses of this tender (clause number, wording, deadline, consequence):
 {clauses}
+
+The tender's own words around these clauses, read from the indexed documents:
+{clause_context}
+
+What our own documents say about these clauses, read from the indexed
+documents:
+{evidence_context}
 
 Return at most 12 recommendations, most important first."""
 
@@ -233,6 +242,8 @@ class Recommender:
         company_documents: list[dict],
         evidence_decisions: dict[str, dict],
         deadline: datetime | None = None,
+        clause_context: str = "",
+        evidence_context: str = "",
     ) -> list[dict]:
         """Return the proposals that passed the gate, with their verdicts."""
         if not self.ai.configured:
@@ -261,6 +272,8 @@ class Recommender:
                 employees=company.get("employee_count") or "not stated",
                 evidence=_evidence_lines(company_documents, evidence_decisions),
                 clauses=_clause_lines(requirements),
+                clause_context=clause_context or "(nothing indexed for these clauses)",
+                evidence_context=evidence_context or "(nothing indexed for our documents)",
             ),
         )
         proposals, _invalid = parse_proposals(payload)

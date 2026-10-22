@@ -59,6 +59,10 @@ Clauses and their verified results:
 Evidence the company holds:
 {evidence}
 
+What our own documents actually say about these clauses, read from the
+indexed documents:
+{evidence_context}
+
 Return at most 12 items, the most urgent first."""
 
 ITEM_EXAMPLE = {
@@ -200,6 +204,7 @@ class Verifier:
         eligibility_items: list[dict],
         company_documents: list[dict],
         deadline: datetime | None = None,
+        evidence_context: str = "",
     ) -> list[dict]:
         """Return one explanation per clause, with the verdict taken from us."""
         if not self.ai.configured:
@@ -225,6 +230,8 @@ class Verifier:
                 employees=company.get("employee_count") or "not stated",
                 clauses=_clause_lines(eligibility_items),
                 evidence=_evidence_lines(company_documents),
+                evidence_context=evidence_context
+                or "(nothing indexed for our documents)",
             ),
         )
         proposals, _invalid = parse_verifications(payload)

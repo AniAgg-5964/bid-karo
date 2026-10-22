@@ -1,12 +1,21 @@
 """Agent 3: what does the official law say about this clause?
 
-The research is done by the TinyFish agent, but only against official
-sources: the allow-list in ``sources.py``. A law firm blog, a news site or a
-tender portal is refused, not warned about.
+The research is done against official sources only: the allow-list in
+``sources.py``. A law firm blog, a news site or a tender portal is refused,
+not warned about.
+
+The agent looks in our own index **first**. A page we have read before, and
+that is still fresh enough, is used as it is, with the URL and the date it
+was read. Only when the memory has nothing, or what it has has gone stale,
+does the agent go to the web. Every page it reads is kept, so the next
+question about the same provision is answered from the memory instead of the
+web.
 
 The shape of the answer is deliberately narrow:
 
-* TinyFish **searches** for the current official page and **reads** it;
+* the index is **searched first**, and a fresh stored reading is used;
+* otherwise TinyFish **searches** for the current official page and **reads**
+  it, and the page is kept for next time;
 * the model then picks the sentences that answer the question, copied
   verbatim from that page;
 * the same quote gate we use for tender clauses checks that each sentence
@@ -23,6 +32,7 @@ compliant.
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime
 from typing import Any
@@ -41,6 +51,8 @@ from app.services.agents.sources import (
     source_class,
     start_urls_for,
 )
+
+logger = logging.getLogger(__name__)
 
 PROMPT_VERSION = "legal-research-v1"
 MAX_PAGES = 4
@@ -235,6 +247,7 @@ class LegalResearcher:
         tender: dict,
         requirement: dict,
         company_documents: list[dict],
+        memory=None,
         retrieved_at: datetime | None = None,
     ) -> list[dict]:
         """Return the provisions found, quoted and checked."""
@@ -263,8 +276,37 @@ class LegalResearcher:
         context = build_context(company, tender)
         policy: SourcePolicy = policy_for(f"{title} {excerpt}")
 
-        candidates = self._search(question, policy, f"{title} {excerpt}")
-        pages = self._fetch(candidates)
+        # The index first: a reading we already have, if it is fresh enough.
+        pages: list[Any] = []
+        read_from = "our stored reading"
+        if memory is not None:
+            try:
+                pages = memory.recall(
+                    company_id=str(company.get("id") or ""),
+                    question=question,
+                    topic=policy.topic,
+                )
+            except Exception as exc:  # noqa: BLE001 - the memory is optional
+                logger.info("The legal memory could not be read: %s", exc)
+                pages = []
+
+        if not pages:
+            read_from = "the official source, read now"
+            candidates = self._search(question, policy, f"{title} {excerpt}")
+            pages = self._fetch(candidates)
+            if memory is not None:
+                for page in pages:
+                    try:
+                        memory.remember(
+                            company_id=str(company.get("id") or ""),
+                            url=page.url,
+                            title=page.title,
+                            text=page.text,
+                            topic=policy.topic,
+                        )
+                    except Exception as exc:  # noqa: BLE001 - keeping it is optional
+                        logger.info("The page could not be kept: %s", exc)
+
         results: list[dict] = []
         for page in pages:
             reading = self._read(page, question, context)
@@ -290,6 +332,7 @@ class LegalResearcher:
                         "source_class": source_class(page.url),
                         "section": provision.section or provision.instrument,
                         "retrieved_at": retrieved_at or datetime.now(tz=None),
+                        "read_from": read_from,
                         "applies_to_us": reading.applies_to_us,
                         "must_hold": list(reading.must_hold),
                         "gap": gap,
@@ -321,6 +364,7 @@ class LegalResearcher:
                             "source_class": source_class(page.url),
                             "section": None,
                             "retrieved_at": retrieved_at or datetime.now(tz=None),
+                            "read_from": read_from,
                             "applies_to_us": reading.applies_to_us,
                             "must_hold": list(reading.must_hold),
                             "gap": (

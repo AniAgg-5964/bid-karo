@@ -203,6 +203,22 @@ The two embedding providers were measured on the same documents and questions ra
 
 One pre-existing defect was fixed on the way: `STORAGE_DIR=./storage` in `.env` was relative, so the server, the scripts and the tests each used a different folder and an uploaded document could not be found again. A relative storage path is now resolved against the repository.
 
+## The agents read the index (verified 2026-10-22)
+
+The three agents no longer work from the stored requirements alone. They read the retrieval index, and the legal agent reads its memory of the official pages before it touches the web.
+
+**The legal agent.** It looks in the index first, in the `legal_reference` scope. A page we have read before, and that is still fresh enough (`LEGAL_MEMORY_MAX_AGE_DAYS`, 30 days by default), is used as it is, with the URL and the date it was read. Only when the memory has nothing, or what it has has gone stale, does it go to TinyFish. Every page it reads is kept, so the next question about the same provision is answered from the memory. The reading says which it was: "our stored reading" or "the official source, read now".
+
+A reading in the index is not proof that the law is still the same. That is why the stored reading carries its date, why a reading older than the limit is not used, and why the agent still quotes and dates every provision it reports. The quote gate runs against the stored page text, so a reading from the memory is checked exactly like a reading from the web.
+
+**The recommender and the verifier.** They are given the passages the index found for the clauses they are acting on: the tender's own words around the clause, and what our own certificates actually say. The passages are quoted with their page and clause, so a proposal can still be checked against the document it came from. Only the company's own passages are ever read: the retrieval service applies the company filter, and the tender scope adds the tender.
+
+**The memory.** The pages we have read are kept in `knowledge_documents` with their text, their URL, the time they were read and their index state. A page is kept once, not once per clause. A page that is too large is kept up to a limit, and the fact is recorded.
+
+Verification on 2026-10-22: backend `pytest` 216 passed (15 new tests for the memory, the agent context and the chunker). The live pipeline showed the recommender reading 8 clauses and 6 evidence passages from the index, and the legal agent answering 2 of its 3 clauses from the stored readings on the second run, having read them from the web on the first.
+
+Two defects were found and fixed on the way. A point id built from a document id and a chunk index was not a UUID, which Qdrant refuses, so the pages were kept but never indexed. And a paragraph that a PDF wrote as one long line became one oversized passage; it is now split at a sentence end, or at a word boundary where there is none, and every piece is still a verbatim span of its page.
+
 ## Later-phase guardrails
 
 - Phase 2 is not complete with mocked TinyFish responses.

@@ -119,6 +119,10 @@ class Database:
         return self.db["legal_sources"]
 
     @property
+    def knowledge_documents(self):
+        return self.db["knowledge_documents"]
+
+    @property
     def audit_logs(self):
         return self.db["audit_logs"]
 
@@ -194,6 +198,14 @@ class Database:
         self.checklist_tasks.create_index(
             [("company_id", ASCENDING), ("tender_id", ASCENDING), ("requirement_id", ASCENDING)],
             name="ix_tasks_company_tender_requirement",
+        )
+        self.knowledge_documents.create_index(
+            [("company_id", ASCENDING), ("scope", ASCENDING)],
+            name="ix_knowledge_company_scope",
+        )
+        self.knowledge_documents.create_index(
+            [("company_id", ASCENDING), ("url", ASCENDING)],
+            name="ix_knowledge_company_url",
         )
         self.evidence_matches.create_index(
             [("company_id", ASCENDING), ("requirement_id", ASCENDING)],

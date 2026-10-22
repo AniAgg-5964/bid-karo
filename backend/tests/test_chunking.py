@@ -102,6 +102,24 @@ def test_the_overlap_is_kept_separate_from_the_quotable_text() -> None:
         assert normalize_for_match(span) == normalize_for_match(passage.text)
 
 
+def test_a_long_paragraph_is_split_into_several_passages() -> None:
+    """A PDF often writes a whole paragraph as one long line."""
+    long_page = "The contractor shall complete the work. " * 100
+    passages = chunk_page(1, "1", long_page, max_words=220, max_chars=1200)
+    assert len(passages) > 1
+    for passage in passages:
+        assert passage.word_count <= 220 + 20
+        assert len(passage.text) <= 1200 + 60
+
+
+def test_a_split_passage_is_still_a_span_of_the_page() -> None:
+    long_page = "The contractor shall complete the work. " * 100
+    passages = chunk_page(1, "1", long_page, max_words=220, max_chars=1200)
+    for passage in passages:
+        span = long_page[passage.start : passage.end]
+        assert normalize_for_match(span) == normalize_for_match(passage.text)
+
+
 def test_an_empty_page_gives_no_passage() -> None:
     assert chunk_page(1, "1", "   \n  ") == []
 

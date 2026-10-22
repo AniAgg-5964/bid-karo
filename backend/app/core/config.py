@@ -131,6 +131,11 @@ class Settings(BaseSettings):
     retrieval_top_k: int = 8
     retrieval_min_score: float = 0.0
 
+    # The memory of the official pages we have read. A stored reading older
+    # than this many days is not used: the official source is read again.
+    legal_memory_max_age_days: int = 30
+    legal_memory_max_chars: int = 120000
+
     # The agent steps. Legal research is bounded because it reads the web and
     # asks a model for every clause it covers.
     legal_research_max_clauses: int = 3
