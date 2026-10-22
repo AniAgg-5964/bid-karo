@@ -62,6 +62,31 @@ class DashboardSummary(BaseModel):
     upcoming_deadlines: list[DeadlineItem]
 
 
+class InboxItem(BaseModel):
+    id: str
+    kind: Literal[
+        "eligibility",
+        "evidence",
+        "change",
+        "deadline",
+        "reminder",
+        "source",
+    ]
+    title: str
+    description: str
+    href: str
+    severity: Literal["info", "warning", "danger", "success"] = "info"
+    due_at: datetime | None = None
+    tender_id: str | None = None
+    tender_title: str | None = None
+    action_label: str
+
+
+class InboxResponse(BaseModel):
+    items: list[InboxItem]
+    total: int
+
+
 class MessageResponse(BaseModel):
     message: str
 

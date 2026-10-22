@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { api } from "../lib/api";
+import artEmptyEvidence from "../assets/art-empty-evidence.svg";
 import { currentLocale } from "../i18n";
 import { useToast } from "../contexts/ToastContext";
 import { PageHeader } from "../components/ui/PageHeader";
@@ -159,6 +160,7 @@ export function DocumentsPage() {
             </div>
           ) : empty === "empty" ? (
             <EmptyState
+              art={artEmptyEvidence}
               icon={FileText}
               title={t("documents.emptyTitle")}
               description={t("documents.emptyBody")}

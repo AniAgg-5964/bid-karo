@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="BidKaro">
+  <title>BidKaro</title>
+  <!-- The mark is drawn as engineering linework: a tender sheet in blueprint
+       cobalt, with the jade check that says the evidence was verified. -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path
+      d="M10 6.5h19.5L38 15v26.5H10z"
+      stroke="#2878C8"
+      stroke-width="2.25"
+    />
+    <path d="M29.5 6.5V15H38" stroke="#2878C8" stroke-width="2.25" />
+    <g stroke="#2878C8" stroke-width="1.5" opacity="0.5">
+      <path d="M16 21.5h16" />
+      <path d="M16 26.5h16" />
+      <path d="M16 31.5h9" />
+    </g>
+    <path
+      d="M16 37.5l5.5 5.5L35 29"
+      stroke="#087F70"
+      stroke-width="3.25"
+    />
+  </g>
+</svg>

@@ -19,6 +19,7 @@ import {
 import { api } from "../lib/api";
 import { currentLocale } from "../i18n";
 import { useAuth } from "../contexts/AuthContext";
+import { ActionInbox } from "../components/dashboard/ActionInbox";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
@@ -61,32 +62,47 @@ const ACTION_TONES = {
   info: "border-navy-100 bg-navy-50/60 dark:border-navy-800 dark:bg-navy-800/40",
 };
 
-function MetricCard({ metric, value, loading }) {
+function MetricStrip({ metrics, summary, loading }) {
   const { t } = useTranslation();
-  const Icon = metric.icon;
   return (
-    <Link
-      to={metric.href}
-      className="surface group p-4 transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-pop sm:p-5"
-    >
-      <div className="flex items-start justify-between">
-        <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", TONES[metric.tone])}>
-          <Icon className="h-5 w-5" aria-hidden="true" />
-        </div>
-        <ArrowRight className="h-4 w-4 text-navy-300 transition group-hover:translate-x-0.5 group-hover:text-teal-600" />
-      </div>
-      {loading ? (
-        <Skeleton className="mt-4 h-8 w-14" />
-      ) : (
-        <p className="mt-4 text-[26px] font-semibold leading-none tracking-tight text-navy-900 dark:text-white">
-          {value}
-        </p>
-      )}
-      <p className="mt-2 text-sm font-medium text-navy-700 dark:text-navy-200">
-        {t(`dashboard.metrics.${metric.key}`)}
-      </p>
-      <p className="mt-0.5 text-xs muted">{t(`dashboard.metricsHelp.${metric.key}`)}</p>
-    </Link>
+    <div className="surface grid divide-y divide-navy-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
+      {metrics.map((metric) => {
+        const Icon = metric.icon;
+        const value = summary?.metrics?.[metric.dataKey] ?? 0;
+        return (
+          <Link
+            key={metric.key}
+            to={metric.href}
+            className="group flex items-center gap-3 px-4 py-3.5 transition hover:bg-navy-50/70 dark:divide-navy-800 dark:hover:bg-navy-800/50"
+          >
+            <span
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                TONES[metric.tone],
+              )}
+            >
+              <Icon className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <span className="min-w-0 flex-1">
+              {loading ? (
+                <Skeleton className="h-5 w-10" />
+              ) : (
+                <span className="tabular block text-lg font-semibold leading-none text-navy-900 dark:text-white">
+                  {value}
+                </span>
+              )}
+              <span className="mt-1 block truncate text-xs font-medium text-navy-600 dark:text-navy-300">
+                {t(`dashboard.metrics.${metric.key}`)}
+              </span>
+            </span>
+            <ArrowRight
+              className="h-3.5 w-3.5 shrink-0 text-navy-300 transition group-hover:translate-x-0.5 group-hover:text-teal-600"
+              aria-hidden="true"
+            />
+          </Link>
+        );
+      })}
+    </div>
   );
 }
 
@@ -191,99 +207,26 @@ export function DashboardPage() {
         </Card>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {METRICS.map((metric) => (
-          <MetricCard
-            key={metric.key}
-            metric={metric}
-            value={summary?.metrics?.[metric.dataKey] ?? 0}
-            loading={loading && !summary}
-          />
-        ))}
-      </div>
-
-      <div className="relative overflow-hidden rounded-2xl bg-navy-900 px-5 py-5 text-white shadow-card sm:px-7 sm:py-6">
-        <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-teal-500/20 blur-3xl" />
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-teal-300">
-              <Sparkles className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="text-sm font-semibold sm:text-base">{t("dashboard.bannerTitle")}</p>
-              <p className="mt-1 max-w-2xl text-xs leading-5 text-navy-200 sm:text-sm">
-                {t("dashboard.bannerBody")}
-              </p>
-            </div>
-          </div>
-          <Link
-            to="/app/discover"
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-navy-900 transition hover:bg-teal-50"
-          >
-            {t("dashboard.bannerCta")}
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </div>
+      <MetricStrip metrics={METRICS} summary={summary} loading={loading && !summary} />
 
       <div className="grid gap-6 xl:grid-cols-[1.55fr_1fr]">
         <div className="space-y-6">
           <Card>
             <CardHeader
               action={
-                <Link to="/app/checklist" className="text-xs font-semibold text-teal-700 hover:text-teal-900 dark:text-teal-300">
+                <Link
+                  to="/app/tenders"
+                  className="text-xs font-semibold text-cobalt-700 hover:text-cobalt-900 dark:text-cobalt-300"
+                >
                   {t("common.viewAll")}
                 </Link>
               }
             >
-              <CardTitle>{t("dashboard.priorityActions")}</CardTitle>
-              <p className="mt-1 text-sm muted">{t("dashboard.subtitle")}</p>
+              <CardTitle>{t("inbox.title")}</CardTitle>
+              <p className="mt-1 text-sm muted">{t("inbox.subtitle")}</p>
             </CardHeader>
             <CardContent className="pt-4">
-              {loading && !summary ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-16 w-full" />
-                  <Skeleton className="h-16 w-full" />
-                </div>
-              ) : summary?.priority_actions?.length ? (
-                <ul className="space-y-2.5">
-                  {summary.priority_actions.map((action) => (
-                    <li key={action.key}>
-                      <Link
-                        to={action.href}
-                        className={cn(
-                          "group flex items-center gap-3 rounded-xl border p-3.5 transition hover:shadow-sm",
-                          ACTION_TONES[action.tone] || ACTION_TONES.info,
-                        )}
-                      >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/80 text-navy-700 shadow-sm dark:bg-navy-900 dark:text-navy-200">
-                          {action.tone === "danger" ? (
-                            <TriangleAlert className="h-4 w-4" />
-                          ) : action.tone === "warning" ? (
-                            <Gauge className="h-4 w-4" />
-                          ) : (
-                            <CheckCircle2 className="h-4 w-4" />
-                          )}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold text-navy-900 dark:text-white">{action.title}</p>
-                          <p className="mt-0.5 text-xs leading-5 text-navy-600 dark:text-navy-300">
-                            {action.description}
-                          </p>
-                        </div>
-                        <ArrowRight className="h-4 w-4 shrink-0 text-navy-300 transition group-hover:translate-x-0.5 group-hover:text-teal-600" />
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <EmptyState
-                  icon={CheckCircle2}
-                  title={t("dashboard.noActions")}
-                  description={t("dashboard.noTendersHint")}
-                  className="py-8"
-                />
-              )}
+              <ActionInbox limit={8} />
             </CardContent>
           </Card>
 

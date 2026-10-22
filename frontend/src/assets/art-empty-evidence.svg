@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" role="img" aria-label="No evidence uploaded yet">
+  <title>No evidence uploaded yet</title>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- The engineering drawing grid -->
+    <g stroke="#2878C8" stroke-width="0.75" opacity="0.16">
+      <path d="M0 40h240M0 80h240M0 120h240" />
+      <path d="M40 0v160M80 0v160M120 0v160M160 0v160M200 0v160" />
+    </g>
+
+    <!-- A sheet waiting to be filled in -->
+    <path d="M62 22h70l30 30v86H62z" stroke="#2878C8" stroke-width="2" />
+    <path d="M132 22v30h30" stroke="#2878C8" stroke-width="2" />
+    <g stroke="#2878C8" stroke-width="1.5" opacity="0.4">
+      <path d="M78 68h60M78 80h60M78 92h38" />
+    </g>
+
+    <!-- The magnifier: the evidence is not here yet -->
+    <circle cx="158" cy="102" r="24" stroke="#087F70" stroke-width="2.5" />
+    <path d="M175 119l16 16" stroke="#087F70" stroke-width="3" stroke-linecap="round" />
+    <path d="M150 102h16M158 94v16" stroke="#087F70" stroke-width="1.5" opacity="0.5" />
+  </g>
+</svg>

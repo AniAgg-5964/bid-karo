@@ -20,6 +20,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui
 import { EmptyState } from "../ui/EmptyState";
 import { Skeleton } from "../ui/Spinner";
 import { cn, formatDateTime } from "../../lib/utils";
+import { sourceFreshness } from "../../lib/trust";
+import { ProvenanceBadge } from "../ui/ProvenanceBadge";
 
 function fieldLabel(field, t) {
   if (!field) return "—";
@@ -117,7 +119,7 @@ export function ChangeRow({ change, onReview, busy, showTender = false }) {
   );
 }
 
-export function TenderChangesPanel({ tenderId }) {
+export function TenderChangesPanel({ tenderId, tender = null }) {
   const { t } = useTranslation();
   const toast = useToast();
   const [changes, setChanges] = useState([]);
@@ -260,7 +262,23 @@ export function TenderChangesPanel({ tenderId }) {
                 })}
               </span>
             ) : null}
+            {/* The state of the source check, said plainly. A source that was
+                never checked is not a source that is up to date. */}
+            {tender?.source_url ? (
+              <ProvenanceBadge
+                state="source_referenced"
+                tone={sourceFreshness(tender).tone}
+                icon={sourceFreshness(tender).tone === "review" ? "shield-question" : "link"}
+                label={t(sourceFreshness(tender).labelKey)}
+              />
+            ) : null}
           </div>
+
+          {tender?.source_url && !tender?.source_retrieved_at ? (
+            <p className="rounded-lg bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+              {t("tenders.context.neverCheckedBody")}
+            </p>
+          ) : null}
 
           {loading ? (
             <div className="space-y-2">

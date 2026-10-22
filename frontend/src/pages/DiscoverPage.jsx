@@ -21,6 +21,7 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { Spinner } from "../components/ui/Spinner";
 import { useToast } from "../contexts/ToastContext";
 import { api, ApiError } from "../lib/api";
+import artEmptyTenders from "../assets/art-empty-tenders.svg";
 import { cn, formatDate, formatDateTime, formatNumber } from "../lib/utils";
 import { fetchStatusTone, scorePercent, scoreTone, sortByRelevance, sourceKindTone, sourceTypeTone } from "../lib/discovery";
 
@@ -455,6 +456,7 @@ export function DiscoverPage() {
         ) : (
           <div className="space-y-4">
             <EmptyState
+              art={artEmptyTenders}
               icon={runStats ? FileSearch : Sparkles}
               title={t("discover.emptyTitle")}
               description={runStats ? t("discover.emptyBody") : t("discover.emptyStored")}

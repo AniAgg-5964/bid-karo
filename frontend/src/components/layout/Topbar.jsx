@@ -8,11 +8,10 @@ import { LanguageSwitch } from "../LanguageSwitch";
 import { ThemeToggle } from "../ThemeToggle";
 import { cn, initials } from "../../lib/utils";
 
-export function Topbar({ onMenu }) {
+export function Topbar({ onMenu, onOpenSearch }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { session, logout } = useAuth();
-  const [query, setQuery] = useState("");
   const [openMenu, setOpenMenu] = useState(null);
   const containerRef = useRef(null);
 
@@ -31,12 +30,6 @@ export function Topbar({ onMenu }) {
     };
   }, []);
 
-  const submitSearch = (event) => {
-    event.preventDefault();
-    const value = query.trim();
-    navigate(value ? `/app/discover?q=${encodeURIComponent(value)}` : "/app/discover");
-  };
-
   const handleLogout = () => {
     logout();
     navigate("/login", { replace: true });
@@ -54,16 +47,26 @@ export function Topbar({ onMenu }) {
           <Menu className="h-5 w-5" />
         </button>
 
-        <form onSubmit={submitSearch} className="relative hidden max-w-md flex-1 sm:block">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-navy-400" />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={t("documents.searchPlaceholder")}
-            aria-label={t("common.search")}
-            className="h-9 w-full rounded-xl border border-navy-200 bg-navy-50/60 pl-9 pr-3 text-sm text-navy-900 outline-none transition placeholder:text-navy-400 focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-500/20 dark:border-navy-700 dark:bg-navy-800 dark:text-white"
-          />
-        </form>
+        <button
+          type="button"
+          onClick={onOpenSearch}
+          className="group hidden h-9 max-w-sm flex-1 items-center gap-2.5 rounded-xl border border-navy-200 bg-navy-50/60 px-3 text-left text-sm text-navy-400 transition hover:border-navy-300 hover:bg-white focus-visible:ring-2 focus-visible:ring-teal-600 dark:border-navy-700 dark:bg-navy-800 dark:hover:border-navy-600 dark:hover:bg-navy-900 sm:flex"
+        >
+          <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="flex-1 truncate">{t("palette.placeholder")}</span>
+          <kbd className="hidden shrink-0 rounded border border-navy-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-navy-500 group-hover:border-navy-300 dark:border-navy-600 dark:bg-navy-900 dark:text-navy-300 lg:inline">
+            Ctrl K
+          </kbd>
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenSearch}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-navy-600 transition hover:bg-navy-100 dark:text-navy-300 dark:hover:bg-navy-800 sm:hidden"
+          aria-label={t("palette.title")}
+        >
+          <Search className="h-4 w-4" aria-hidden="true" />
+        </button>
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
           <LanguageSwitch compact className="hidden sm:inline-flex" />
@@ -86,7 +89,7 @@ export function Topbar({ onMenu }) {
                   {t("common.notifications")}
                 </p>
                 <p className="mt-3 rounded-lg bg-navy-50 px-3 py-4 text-center text-sm muted dark:bg-navy-800">
-                  {t("common.noNotifications")}
+                  {t("inbox.empty")}
                 </p>
                 <Link
                   to="/app/changes"

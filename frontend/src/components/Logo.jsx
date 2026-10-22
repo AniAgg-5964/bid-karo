@@ -1,24 +1,22 @@
 import { cn } from "../lib/utils";
+import markUrl from "../assets/logo-mark.svg";
 
+/*
+  The mark is a tender sheet drawn as engineering linework, in blueprint
+  cobalt, with the jade check that says the evidence was verified. It is the
+  same drawing whether it sits on a light surface or on the ink navigation.
+*/
 export function Logo({ compact = false, light = false, className }) {
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
-      <div
+      <span
         className={cn(
-          "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-sm",
-          light ? "bg-white" : "bg-navy-900 dark:bg-teal-600",
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+          light ? "bg-white/95" : "bg-white",
         )}
       >
-        <span className={cn("text-lg font-bold leading-none", light ? "text-navy-900" : "text-white")}>
-          B
-        </span>
-        <span
-          className={cn(
-            "absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border bg-teal-400",
-            light ? "border-white" : "border-white dark:border-navy-900",
-          )}
-        />
-      </div>
+        <img src={markUrl} alt="" aria-hidden="true" className="h-7 w-7" />
+      </span>
       {!compact ? (
         <div className="leading-tight">
           <p
@@ -32,7 +30,7 @@ export function Logo({ compact = false, light = false, className }) {
           <p
             className={cn(
               "text-[10px] font-medium uppercase tracking-[0.16em]",
-              light ? "text-navy-200" : "text-navy-400",
+              light ? "text-navy-400" : "text-navy-400",
             )}
           >
             Tender intelligence

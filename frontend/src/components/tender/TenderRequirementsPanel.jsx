@@ -26,6 +26,10 @@ import { currentLocale } from "../../i18n";
 import { useToast } from "../../contexts/ToastContext";
 import { Badge, StatusBadge } from "../ui/Badge";
 import { Button } from "../ui/Button";
+import { EvidenceDock } from "./EvidenceDock";
+import { EvidenceThread } from "./EvidenceThread";
+import { ProvenanceBadge } from "../ui/ProvenanceBadge";
+import { requirementTrust } from "../../lib/trust";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/Card";
 import { EmptyState } from "../ui/EmptyState";
 import { Select } from "../ui/Field";
@@ -53,9 +57,7 @@ export function TenderRequirementsPanel({ tenderId, refreshKey = 0 }) {
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState(null);
 
-  const [pageModal, setPageModal] = useState(null);
-  const [pageText, setPageText] = useState(null);
-  const [pageLoading, setPageLoading] = useState(false);
+  const [dockRequirement, setDockRequirement] = useState(null);
 
   const [evidenceModal, setEvidenceModal] = useState(null);
   const [evidenceData, setEvidenceData] = useState(null);
@@ -127,20 +129,8 @@ export function TenderRequirementsPanel({ tenderId, refreshKey = 0 }) {
     }
   };
 
-  const viewPage = async (requirement) => {
-    setPageModal(requirement);
-    setPageText(null);
-    setPageLoading(true);
-    try {
-      const page = await api.get(
-        `/tender-documents/${requirement.document_id}/pages/${requirement.page_index}`,
-      );
-      setPageText(page);
-    } catch (err) {
-      toast.error(err.message === "NETWORK_ERROR" ? t("errors.network") : err.message || t("errors.generic"));
-    } finally {
-      setPageLoading(false);
-    }
+  const viewPage = (requirement) => {
+    setDockRequirement(requirement);
   };
 
   const openEvidence = async (requirement) => {
@@ -271,10 +261,12 @@ export function TenderRequirementsPanel({ tenderId, refreshKey = 0 }) {
           </div>
         ) : items.length ? (
           <div className="space-y-3">
-            {items.map((requirement) => (
+            {items.map((requirement) => {
+              const trust = requirementTrust(requirement);
+              return (
               <article
                 key={requirement.id}
-                className="rounded-xl border border-navy-100 p-4 dark:border-navy-800"
+                className="rounded-xl border border-navy-100 p-4 transition hover:border-navy-200 dark:border-navy-800 dark:hover:border-navy-700"
               >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
@@ -290,6 +282,13 @@ export function TenderRequirementsPanel({ tenderId, refreshKey = 0 }) {
                         label={t(
                           `tenders.requirements.verification.${requirement.verification_status}`,
                         )}
+                      />
+                      <ProvenanceBadge
+                        state={trust.state}
+                        tone={trust.tone}
+                        icon={trust.icon}
+                        label={t(`trust.states.${trust.state}`)}
+                        size="sm"
                       />
                       <Badge tone={requirement.mandatory === "yes" ? "amber" : "neutral"}>
                         {t(`tenders.requirements.mandatoryValues.${requirement.mandatory}`)}
@@ -357,6 +356,12 @@ export function TenderRequirementsPanel({ tenderId, refreshKey = 0 }) {
                   </p>
                   <p className="whitespace-pre-wrap">{requirement.excerpt}</p>
                 </blockquote>
+
+                <EvidenceThread
+                  requirement={requirement}
+                  onOpenSource={viewPage}
+                  className="mt-3"
+                />
 
                 {requirement.obligation && requirement.obligation !== requirement.excerpt ? (
                   <div className="mt-2">
@@ -438,7 +443,8 @@ export function TenderRequirementsPanel({ tenderId, refreshKey = 0 }) {
                   </p>
                 ) : null}
               </article>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <EmptyState
@@ -458,55 +464,6 @@ export function TenderRequirementsPanel({ tenderId, refreshKey = 0 }) {
           </p>
         ) : null}
       </CardContent>
-
-      <Modal
-        open={Boolean(pageModal)}
-        onClose={() => setPageModal(null)}
-        title={t("tenders.requirements.pageModalTitle")}
-        description={
-          pageModal
-            ? `${pageModal.title} · ${t("tenders.requirements.page", {
-                page: pageModal.page_index,
-              })}`
-            : ""
-        }
-        size="lg"
-        footer={
-          <Button variant="outline" onClick={() => setPageModal(null)}>
-            {t("common.close")}
-          </Button>
-        }
-      >
-        {pageLoading ? (
-          <Skeleton className="h-40 w-full" />
-        ) : pageText ? (
-          <div>
-            {pageText.text_source === "ocr" ? (
-              <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-                {t("tenders.requirements.ocrPageNote")}
-              </div>
-            ) : null}
-            <div className="mb-2 flex items-center gap-2 text-xs muted">
-              {pageText.has_text ? (
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-              ) : (
-                <ShieldQuestion className="h-3.5 w-3.5 text-amber-600" />
-              )}
-              <span>
-                {t("tenders.requirements.page", { page: pageText.page_index })}
-              </span>
-              {pageText.printed_label && pageText.printed_label !== String(pageText.page_index) ? (
-                <span>
-                  {t("tenders.requirements.printed", { label: pageText.printed_label })}
-                </span>
-              ) : null}
-            </div>
-            <pre className="max-h-[30rem] overflow-auto whitespace-pre-wrap rounded-xl bg-navy-50 p-3 text-xs leading-5 text-navy-800 dark:bg-navy-950 dark:text-navy-100">
-              {pageText.text || t("tenders.documentsPanel.pageNoText")}
-            </pre>
-          </div>
-        ) : null}
-      </Modal>
 
       <Modal
         open={Boolean(evidenceModal)}
@@ -639,6 +596,13 @@ export function TenderRequirementsPanel({ tenderId, refreshKey = 0 }) {
           </div>
         ) : null}
       </Modal>
+
+      <EvidenceDock
+        open={Boolean(dockRequirement)}
+        requirement={dockRequirement}
+        tenderId={tenderId}
+        onClose={() => setDockRequirement(null)}
+      />
     </Card>
   );
 }
