@@ -60,10 +60,10 @@ export function WorkbenchTabs({ active, onChange, counts = {} }) {
                 "border-t border-navy-100 sm:border-l sm:border-t-0 dark:border-navy-800",
             )}
           >
-            <p className="mr-1 hidden shrink-0 text-[10px] font-bold uppercase tracking-[0.14em] text-navy-400 lg:block">
+            <p className="mr-1 hidden shrink-0 text-[10px] font-bold uppercase tracking-[0.14em] text-navy-500 lg:block dark:text-navy-300">
               {t(`tenders.workbench.${group.key}`)}
             </p>
-            <p className="mr-1 shrink-0 text-[10px] font-bold uppercase tracking-[0.14em] text-navy-400 lg:hidden">
+            <p className="mr-1 shrink-0 text-[10px] font-bold uppercase tracking-[0.14em] text-navy-500 lg:hidden dark:text-navy-300">
               {t(`tenders.workbench.${group.key}`)}
             </p>
             {group.tabs.map((tab) => {

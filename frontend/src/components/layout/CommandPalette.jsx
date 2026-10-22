@@ -241,7 +241,7 @@ export function CommandPalette({ open = false, onClose: onCloseProp }) {
                           <span className="mt-0.5 block truncate text-xs muted">{item.hint}</span>
                         ) : null}
                       </span>
-                      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-navy-400">
+                      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-navy-500 dark:text-navy-300">
                         {t(`palette.kinds.${item.kind}`)}
                       </span>
                       {index === active ? (

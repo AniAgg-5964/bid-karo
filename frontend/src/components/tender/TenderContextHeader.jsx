@@ -201,7 +201,7 @@ export function TenderContextHeader({ tender, tenderId, onDownloadCalendar }) {
 function Fact({ icon: Icon, label, value, unavailableLabel, badge }) {
   return (
     <div className="min-w-0">
-      <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-navy-400">
+      <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-navy-500 dark:text-navy-300">
         <Icon className="h-3 w-3" aria-hidden="true" />
         {label}
       </dt>

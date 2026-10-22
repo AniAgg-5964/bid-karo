@@ -91,7 +91,7 @@ export function Sidebar({ onNavigate, className }) {
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 pb-4">
-        <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-navy-500">
+        <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-navy-500 dark:text-navy-300">
           {t("nav.workspace")}
         </p>
         <nav className="space-y-0.5" aria-label={t("nav.workspace")}>
@@ -107,7 +107,7 @@ export function Sidebar({ onNavigate, className }) {
           />
         </nav>
 
-        <p className="px-3 pb-2 pt-7 text-[10px] font-bold uppercase tracking-[0.18em] text-navy-500">
+        <p className="px-3 pb-2 pt-7 text-[10px] font-bold uppercase tracking-[0.18em] text-navy-500 dark:text-navy-300">
           {t("nav.account")}
         </p>
         <nav className="space-y-0.5" aria-label={t("nav.account")}>

@@ -31,4 +31,5 @@ def dashboard_inbox(
     return InboxResponse(
         items=[InboxItem.model_validate(item) for item in result["items"]],
         total=result["total"],
+        truncated=result["truncated"],
     )

@@ -51,6 +51,7 @@ export function ActionInbox({ limit }) {
   const { t } = useTranslation();
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
+  const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -64,6 +65,7 @@ export function ActionInbox({ limit }) {
         if (!active) return;
         setItems(data.items || []);
         setTotal(data.total || 0);
+        setTruncated(Boolean(data.truncated));
       })
       .catch((err) => {
         if (!active) return;
@@ -111,7 +113,7 @@ export function ActionInbox({ limit }) {
 
   return (
     <div className="space-y-2">
-      {total > shown.length ? (
+      {truncated ? (
         <p className="pb-1 text-xs muted">
           {t("inbox.more", { shown: shown.length, total })}
         </p>
@@ -136,7 +138,7 @@ export function ActionInbox({ limit }) {
                 <span className="text-sm font-semibold text-navy-900 dark:text-white">
                   {item.title}
                 </span>
-                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-navy-400">
+                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-navy-500 dark:text-navy-300">
                   {t(`inbox.kinds.${item.kind}`)}
                 </span>
               </span>

@@ -158,7 +158,7 @@ function TenderCard({ item, locale, onSave, onDismiss, saving }) {
         <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {infoRows.map((row) => (
             <div key={row.key} className="rounded-xl border border-navy-100 px-3.5 py-3 dark:border-navy-800">
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-navy-400">{row.label}</dt>
+              <dt className="text-[11px] font-semibold uppercase tracking-wide text-navy-500 dark:text-navy-300">{row.label}</dt>
               <dd
                 className={cn(
                   "mt-1 text-sm",
@@ -173,7 +173,7 @@ function TenderCard({ item, locale, onSave, onDismiss, saving }) {
 
         {relevance.reasons?.length ? (
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-navy-400">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-navy-500 dark:text-navy-300">
               {t("discover.reasons")}
             </p>
             <ul className="mt-2 flex flex-wrap gap-2">
@@ -207,7 +207,7 @@ function TenderCard({ item, locale, onSave, onDismiss, saving }) {
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-xs italic text-navy-400">{t("discover.noEvidence")}</p>
+            <p className="mt-2 text-xs italic text-navy-500 dark:text-navy-300">{t("discover.noEvidence")}</p>
           )}
           {item.fetch_error ? (
             <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">

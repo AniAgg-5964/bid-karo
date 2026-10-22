@@ -27,7 +27,7 @@ export function LanguageSwitch({ className, compact = false }) {
               "rounded-md px-2 py-1 text-[11px] font-bold transition",
               active
                 ? "bg-navy-900 text-white dark:bg-teal-600"
-                : "text-navy-500 hover:bg-navy-50 hover:text-navy-800 dark:hover:bg-navy-800 dark:hover:text-white",
+                : "text-navy-500 hover:bg-navy-50 hover:text-navy-800 dark:text-navy-300 dark:hover:bg-navy-800 dark:hover:text-white",
             )}
           >
             {compact ? language.short : language.label}

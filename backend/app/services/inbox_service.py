@@ -93,12 +93,21 @@ class InboxService:
                 item.get("due_at") or datetime.max.replace(tzinfo=timezone.utc),
             )
         )
-        return {"items": items[:MAX_ITEMS], "total": len(items)}
+        return {
+            "items": items[:MAX_ITEMS],
+            "total": len(items),
+            "truncated": len(items) > MAX_ITEMS,
+        }
 
     # ------------------------------------------------------------------ parts
 
     def _eligibility_items(self, company_id: str) -> list[dict[str, Any]]:
-        """Mandatory criteria that failed, or that nobody has decided yet."""
+        """The mandatory criteria that failed, or that nobody has decided yet.
+
+        One item per tender, not one per criterion: a reader wants to know
+        which tender is blocked and by how much, and the criteria themselves
+        are one click away.
+        """
         items: list[dict[str, Any]] = []
         tenders, _total = self.tenders.list_for_company(company_id, limit=50)
         for tender in tenders:
@@ -109,30 +118,40 @@ class InboxService:
                 result = self.assessment.assess(tender_id=tender_id, company={"id": company_id})
             except Exception:  # noqa: BLE001 - one tender must not break the list
                 continue
-            for entry in result.eligibility.items:
-                gate = entry.gate
-                if gate not in {"fail", "unknown"}:
-                    continue
-                failed = gate == "fail"
-                items.append(
-                    {
-                        "id": f"eligibility-{entry.requirement_id}",
-                        "kind": "eligibility",
-                        "title": entry.title or "Untitled requirement",
-                        "description": entry.reason
-                        or "The requirement has not been decided.",
-                        "href": _href(tender_id, "eligibility"),
-                        "severity": "danger" if failed else "warning",
-                        "due_at": None,
-                        "tender_id": tender_id,
-                        "tender_title": tender.get("title"),
-                        "action_label": (
-                            "Review the evidence for this criterion"
-                            if failed
-                            else "Confirm or reject the evidence"
-                        ),
-                    }
+            failed = [entry for entry in result.eligibility.items if entry.gate == "fail"]
+            unknown = [entry for entry in result.eligibility.items if entry.gate == "unknown"]
+            if not failed and not unknown:
+                continue
+            if failed:
+                title = (
+                    f"{len(failed)} mandatory "
+                    f"{'criterion fails' if len(failed) == 1 else 'criteria fail'}"
                 )
+                description = failed[0].title or ""
+                severity = "danger"
+                action = "Review the evidence for this criterion"
+            else:
+                title = (
+                    f"{len(unknown)} mandatory "
+                    f"{'criterion needs' if len(unknown) == 1 else 'criteria need'} a decision"
+                )
+                description = unknown[0].title or ""
+                severity = "warning"
+                action = "Confirm or reject the evidence"
+            items.append(
+                {
+                    "id": f"eligibility-{tender_id}",
+                    "kind": "eligibility",
+                    "title": title,
+                    "description": f"{tender.get('title') or 'Tender'}. {description}".strip(". "),
+                    "href": _href(tender_id, "eligibility"),
+                    "severity": severity,
+                    "due_at": None,
+                    "tender_id": tender_id,
+                    "tender_title": tender.get("title"),
+                    "action_label": action,
+                }
+            )
         return items
 
     def _change_items(self, company_id: str) -> list[dict[str, Any]]:

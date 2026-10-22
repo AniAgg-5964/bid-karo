@@ -187,7 +187,7 @@ function TenderOverview({ tender, tenderId, onOpenTab }) {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="surface-quiet p-3.5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-navy-400">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-navy-500 dark:text-navy-300">
                 {t("tenders.detail.documentsLabel")}
               </p>
               <p className="tabular mt-1 text-lg font-semibold text-navy-900 dark:text-white">
@@ -195,7 +195,7 @@ function TenderOverview({ tender, tenderId, onOpenTab }) {
               </p>
             </div>
             <div className="surface-quiet p-3.5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-navy-400">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-navy-500 dark:text-navy-300">
                 {t("tenders.savedLabel")}
               </p>
               <p className="mt-1 text-sm font-medium text-navy-900 dark:text-white">

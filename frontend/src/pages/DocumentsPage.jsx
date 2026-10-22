@@ -178,7 +178,7 @@ export function DocumentsPage() {
               <div className="hidden overflow-x-auto md:block">
                 <table className="w-full min-w-[680px] border-collapse text-left">
                   <thead>
-                    <tr className="border-b border-navy-100 text-[11px] uppercase tracking-wide text-navy-400 dark:border-navy-800">
+                    <tr className="border-b border-navy-100 text-[11px] uppercase tracking-wide text-navy-500 dark:border-navy-800 dark:text-navy-300">
                       <th className="pb-2.5 font-semibold">{t("documents.columns.document")}</th>
                       <th className="pb-2.5 font-semibold">{t("documents.columns.type")}</th>
                       <th className="pb-2.5 font-semibold">{t("documents.columns.issuer")}</th>

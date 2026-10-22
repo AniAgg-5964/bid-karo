@@ -231,19 +231,19 @@ export function SettingsPage() {
             <CardContent className="space-y-4 pt-4">
               <dl className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-navy-400">{t("settings.email")}</dt>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-navy-500 dark:text-navy-300">{t("settings.email")}</dt>
                   <dd className="mt-1 text-sm text-navy-900 dark:text-white">{session?.user?.email}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-navy-400">{t("settings.role")}</dt>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-navy-500 dark:text-navy-300">{t("settings.role")}</dt>
                   <dd className="mt-1 text-sm capitalize text-navy-900 dark:text-white">{session?.user?.role || "—"}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-navy-400">{t("settings.company")}</dt>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-navy-500 dark:text-navy-300">{t("settings.company")}</dt>
                   <dd className="mt-1 text-sm text-navy-900 dark:text-white">{session?.company?.name}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-navy-400">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-navy-500 dark:text-navy-300">
                     {t("settings.memberSince")}
                   </dt>
                   <dd className="mt-1 text-sm text-navy-900 dark:text-white">

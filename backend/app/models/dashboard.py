@@ -85,6 +85,7 @@ class InboxItem(BaseModel):
 class InboxResponse(BaseModel):
     items: list[InboxItem]
     total: int
+    truncated: bool = False
 
 
 class MessageResponse(BaseModel):

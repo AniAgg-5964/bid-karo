@@ -134,7 +134,7 @@ export function TenderScorePanel({ tenderId, onOpenTab }) {
 
           <div className="grid gap-5 lg:grid-cols-[220px_1fr] lg:items-center">
             <div className="rounded-2xl bg-navy-50 p-5 text-center dark:bg-navy-800">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-navy-400">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-navy-500 dark:text-navy-300">
                 {t("tenders.assessment.softScore")}
               </p>
               <p className="mt-2 text-5xl font-semibold tracking-tight text-navy-900 dark:text-white">
@@ -183,7 +183,7 @@ export function TenderScorePanel({ tenderId, onOpenTab }) {
               ["openTasks", counts.checklist_open],
             ].map(([key, value]) => (
               <div key={key} className="rounded-xl bg-navy-50 p-3 dark:bg-navy-800">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-navy-400">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-navy-500 dark:text-navy-300">
                   {t(`tenders.assessment.counts.${key}`)}
                 </p>
                 <p className="mt-1 text-lg font-semibold text-navy-900 dark:text-white">{value}</p>
@@ -269,7 +269,7 @@ export function TenderEligibilityPanel({ tenderId, onOpenTab }) {
             ["unknown", eligibility.unknown_count, "text-amber-700 dark:text-amber-300"],
           ].map(([key, value, tone]) => (
             <div key={key} className="rounded-xl bg-navy-50 p-3 dark:bg-navy-800">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-navy-400">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-navy-500 dark:text-navy-300">
                 {t(`tenders.assessment.gate.${key}`)}
               </p>
               <p className={cn("mt-1 text-2xl font-semibold", tone)}>{value}</p>
@@ -682,7 +682,7 @@ export function TenderLegalPanel({ tenderId }) {
                 ) : null}
                 {sourcesFor(item.requirement_id).length ? (
                   <div className="mt-3 space-y-2 rounded-lg border border-navy-100 bg-navy-50/60 p-3 dark:border-navy-800 dark:bg-navy-800/60">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-navy-500">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-navy-500 dark:text-navy-300">
                       {t("tenders.recommend.legalSources")}
                     </p>
                     {sourcesFor(item.requirement_id).map((source) => (

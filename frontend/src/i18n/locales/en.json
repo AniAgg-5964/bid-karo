@@ -975,7 +975,7 @@
   "inbox": {
     "empty": "Nothing needs you right now",
     "emptyBody": "Unresolved criteria, changes waiting for review and deadlines that are close will appear here.",
-    "more": "Showing {{shown}} of {{total}} items.",
+    "more": "Showing the {{shown}} most important of {{total}} items.",
     "kinds": {
       "eligibility": "Eligibility",
       "evidence": "Evidence",

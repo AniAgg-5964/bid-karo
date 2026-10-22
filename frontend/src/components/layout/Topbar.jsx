@@ -50,7 +50,7 @@ export function Topbar({ onMenu, onOpenSearch }) {
         <button
           type="button"
           onClick={onOpenSearch}
-          className="group hidden h-9 max-w-sm flex-1 items-center gap-2.5 rounded-xl border border-navy-200 bg-navy-50/60 px-3 text-left text-sm text-navy-400 transition hover:border-navy-300 hover:bg-white focus-visible:ring-2 focus-visible:ring-teal-600 dark:border-navy-700 dark:bg-navy-800 dark:hover:border-navy-600 dark:hover:bg-navy-900 sm:flex"
+          className="group hidden h-9 max-w-sm flex-1 items-center gap-2.5 rounded-xl border border-navy-200 bg-navy-50/60 px-3 text-left text-sm text-navy-500 transition hover:border-navy-300 hover:bg-white focus-visible:ring-2 focus-visible:ring-teal-600 dark:border-navy-700 dark:bg-navy-800 dark:text-navy-300 dark:hover:border-navy-600 dark:hover:bg-navy-900 sm:flex"
         >
           <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="flex-1 truncate">{t("palette.placeholder")}</span>
@@ -85,7 +85,7 @@ export function Topbar({ onMenu, onOpenSearch }) {
             </button>
             {openMenu === "notifications" ? (
               <div className="absolute right-0 mt-2 w-72 rounded-xl border border-navy-100 bg-white p-3 shadow-pop animate-fade-in dark:border-navy-700 dark:bg-navy-900">
-                <p className="px-1 text-xs font-semibold uppercase tracking-wide text-navy-400">
+                <p className="px-1 text-xs font-semibold uppercase tracking-wide text-navy-500 dark:text-navy-300">
                   {t("common.notifications")}
                 </p>
                 <p className="mt-3 rounded-lg bg-navy-50 px-3 py-4 text-center text-sm muted dark:bg-navy-800">
@@ -107,17 +107,30 @@ export function Topbar({ onMenu, onOpenSearch }) {
               type="button"
               onClick={() => setOpenMenu((current) => (current === "user" ? null : "user"))}
               className="flex items-center gap-2 rounded-xl border border-transparent p-1 pr-1.5 transition hover:border-navy-200 hover:bg-navy-50 dark:hover:border-navy-700 dark:hover:bg-navy-800"
-              aria-label={t("common.profile")}
+              aria-label={[
+                initials(session?.user?.full_name),
+                session?.user?.full_name,
+                session?.company?.name,
+                t("common.profile"),
+              ]
+                .filter(Boolean)
+                .join(" ")}
               aria-expanded={openMenu === "user"}
             >
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-navy-900 text-xs font-bold text-white dark:bg-teal-600">
+              <span
+                aria-hidden="true"
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-navy-900 text-xs font-bold text-white dark:bg-teal-600"
+              >
                 {initials(session?.user?.full_name)}
-              </span>
+              </span>{" "}
               <span className="hidden text-left md:block">
                 <span className="block max-w-[130px] truncate text-xs font-semibold text-navy-900 dark:text-white">
                   {session?.user?.full_name}
-                </span>
-                <span className="block max-w-[130px] truncate text-[10px] text-navy-400">
+                </span>{" "}
+                <span
+                  aria-hidden="true"
+                  className="block max-w-[130px] truncate text-[10px] text-navy-500 dark:text-navy-300"
+                >
                   {session?.company?.name}
                 </span>
               </span>

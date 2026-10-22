@@ -39,7 +39,7 @@ import { Skeleton } from "../ui/Spinner";
 function SummaryTile({ label, value, tone = "text-navy-900 dark:text-white" }) {
   return (
     <div className="rounded-xl bg-navy-50 p-3 dark:bg-navy-800">
-      <p className="text-[10px] font-bold uppercase tracking-wide text-navy-400">{label}</p>
+      <p className="text-[10px] font-bold uppercase tracking-wide text-navy-500 dark:text-navy-300">{label}</p>
       <p className={cn("mt-1 text-lg font-semibold", tone)}>{value}</p>
     </div>
   );
@@ -365,7 +365,7 @@ export function TenderRequirementsPanel({ tenderId, refreshKey = 0 }) {
 
                 {requirement.obligation && requirement.obligation !== requirement.excerpt ? (
                   <div className="mt-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-navy-400">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-navy-500 dark:text-navy-300">
                       {t("tenders.requirements.interpretation")}
                     </p>
                     <p className="mt-1 text-sm leading-6 muted">{requirement.obligation}</p>

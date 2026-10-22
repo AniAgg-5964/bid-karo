@@ -87,7 +87,7 @@ export function ChangeRow({ change, onReview, busy, showTender = false }) {
 
       <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
         <div className="rounded-lg bg-navy-50 px-3 py-2 dark:bg-navy-800">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-navy-400">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-navy-500 dark:text-navy-300">
             {t("tenders.detail.changesPanel.from")}
           </p>
           <p className="mt-0.5 break-words text-xs text-navy-700 dark:text-navy-200">
@@ -340,7 +340,7 @@ export function TenderChangesPanel({ tenderId, tender = null }) {
                     </p>
                   </div>
                   {snapshot.source_retrieved_at ? (
-                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-navy-400">
+                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-navy-500 dark:text-navy-300">
                       {t("tenders.requirements.retrieved", {
                         date: formatDateTime(snapshot.source_retrieved_at, currentLocale()),
                       })}
