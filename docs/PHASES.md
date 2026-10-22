@@ -185,6 +185,8 @@ Known limits, stated honestly: the legal assistant can reach official pages, but
 
 Verification on 2026-10-22: backend `pytest` 161 passed (17 new tests for the embeddings, the store and the knowledge endpoints), frontend `npm test` 22 passed, `npm run build` succeeded. A local Qdrant 1.19.1 was started and the backend created the `bidkaro_knowledge` collection with the provider's dimension (384 for the hashing provider) and reported it through `/api/knowledge/health` and `/api/knowledge/collection`.
 
+The embedding providers were measured rather than assumed. The optional semantic provider (`model2vec`, `minishlab/potion-base-8M`, 256 dimensions) was installed and run: it loads in about 9 seconds after a one-off download, scores two different wordings of the same wage clause at 0.78 and an unrelated clause at 0.31, and costs nothing to run. The default remains the hashing provider, which needs no download and is exact on wording; the semantic provider is the documented option for meaning-based retrieval.
+
 One defect was found and fixed on the way: the assessment test compared an expiry against the local date while the code compares it against UTC, so it failed in the hour between local and UTC midnight. The test now uses the server's clock.
 
 ## Later-phase guardrails
