@@ -89,3 +89,50 @@ class DocumentRepository:
             }
         ).sort("expiry_date", 1)
         return [with_id(item) for item in cursor]
+
+
+class CompanyPageRepository:
+    """The extracted pages of a company document."""
+
+    def __init__(self, db: Database) -> None:
+        self.collection = db.company_pages
+
+    def replace_for_document(
+        self, *, company_id: str, document_id: str, pages: list[dict]
+    ) -> None:
+        self.collection.delete_many({"document_id": document_id, "company_id": company_id})
+        if not pages:
+            return
+        now = utcnow()
+        payload = [
+            {
+                "_id": uuid4().hex,
+                "company_id": company_id,
+                "document_id": document_id,
+                "created_at": now,
+                **page,
+            }
+            for page in pages
+        ]
+        self.collection.insert_many(payload)
+
+    def list_for_document(self, document_id: str, company_id: str) -> list[dict]:
+        cursor = self.collection.find({"document_id": document_id, "company_id": company_id}).sort(
+            "page_index", 1
+        )
+        return [with_id(item) for item in cursor]
+
+    def find_page(self, document_id: str, company_id: str, page_index: int) -> dict | None:
+        return with_id(
+            self.collection.find_one(
+                {
+                    "document_id": document_id,
+                    "company_id": company_id,
+                    "page_index": page_index,
+                }
+            )
+        )
+
+    def delete_for_document(self, document_id: str, company_id: str) -> int:
+        result = self.collection.delete_many({"document_id": document_id, "company_id": company_id})
+        return result.deleted_count

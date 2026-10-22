@@ -152,6 +152,14 @@ class QdrantVectorStore:
                 item.name for item in self.client.get_collections().collections
             ]
             if self.collection_name in existing:
+                current = self.collection_dimension()
+                if current and current != dimension:
+                    raise VectorStoreError(
+                        f"The collection '{self.collection_name}' holds vectors of "
+                        f"{current} dimensions, but the embedding model produces "
+                        f"{dimension}. Delete the collection and index again, or "
+                        f"use the model it was built with."
+                    )
                 return True
             from qdrant_client.models import Distance, VectorParams  # type: ignore[import-not-found]
 
@@ -167,8 +175,41 @@ class QdrantVectorStore:
             return True
         except VectorStoreUnavailable:
             raise
+        except VectorStoreError:
+            raise
         except Exception as exc:  # noqa: BLE001 - reported as a store failure
             raise VectorStoreError(f"The collection could not be created: {exc}") from exc
+
+    def collection_dimension(self) -> int | None:
+        """The vector size of the collection, or None when it does not exist."""
+        try:
+            info = self.client.get_collection(collection_name=self.collection_name)
+        except Exception:  # noqa: BLE001 - a missing collection is not a failure
+            return None
+        params = getattr(info, "config", None)
+        params = getattr(params, "params", None)
+        vectors = getattr(params, "vectors", None)
+        if isinstance(vectors, dict):
+            for config in vectors.values():
+                size = getattr(config, "size", None)
+                if size:
+                    return int(size)
+            return None
+        size = getattr(vectors, "size", None)
+        return int(size) if size else None
+
+    def delete_collection(self) -> bool:
+        """Remove the collection and everything in it.
+
+        Used when the embedding model changes: the old vectors cannot be read
+        with the new model, and the documents can be indexed again from
+        MongoDB and the stored files.
+        """
+        try:
+            self.client.delete_collection(collection_name=self.collection_name)
+            return True
+        except Exception as exc:  # noqa: BLE001 - reported as a store failure
+            raise VectorStoreError(f"The collection could not be removed: {exc}") from exc
 
     # ----------------------------------------------------------------- writing
     def upsert_points(self, points: Sequence[VectorPoint]) -> int:
@@ -253,20 +294,47 @@ class QdrantVectorStore:
             raise VectorStoreError(f"The passages could not be searched: {exc}") from exc
 
 
+def _clause(key: str, value: Any) -> dict[str, Any]:
+    """One filter clause."""
+    if isinstance(value, (list, tuple, set)):
+        return {"key": key, "match": {"any": list(value)}}
+    return {"key": key, "match": {"value": value}}
+
+
 def _to_filter(filters: dict[str, Any] | None):
-    """Turn a simple filter mapping into a Qdrant filter."""
+    """Turn a filter mapping into a Qdrant filter.
+
+    A flat mapping is a set of mandatory clauses. A mapping with ``must`` and
+    ``should`` keys builds the richer form: the mandatory clauses, and at
+    least one of the alternatives.
+    """
     if not filters:
         return None
     from qdrant_client.models import Filter  # type: ignore[import-not-found]
+
+    if "must" in filters or "should" in filters:
+        must_clauses: list[dict[str, Any]] = []
+        should_clauses: list[dict[str, Any]] = []
+        for key, value in (filters.get("must") or {}).items():
+            if value is None:
+                continue
+            must_clauses.append(_clause(key, value))
+        for group in filters.get("should") or []:
+            if not isinstance(group, dict):
+                continue
+            for key, value in group.items():
+                if value is None:
+                    continue
+                should_clauses.append(_clause(key, value))
+        if not must_clauses and not should_clauses:
+            return None
+        return Filter(must=must_clauses, should=should_clauses)
 
     must = []
     for key, value in filters.items():
         if value is None:
             continue
-        if isinstance(value, (list, tuple, set)):
-            must.append({"key": key, "match": {"any": list(value)}})
-        else:
-            must.append({"key": key, "match": {"value": value}})
+        must.append(_clause(key, value))
     if not must:
         return None
     return Filter(must=must)

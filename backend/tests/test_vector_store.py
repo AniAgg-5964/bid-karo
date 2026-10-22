@@ -117,6 +117,13 @@ class FakeCount:
         self.count = count
 
 
+class FakeCollectionInfo:
+    def __init__(self, size: int) -> None:
+        self.config = type("Config", (), {})()
+        self.config.params = type("Params", (), {})()
+        self.config.params.vectors = type("Vectors", (), {"size": size})()
+
+
 class FakeQdrantClient:
     """A stand-in for the Qdrant client with the surface we use."""
 
@@ -126,14 +133,25 @@ class FakeQdrantClient:
         self.stored: dict[str, dict] = {}
         self.deleted: list[str] = []
         self.search_filters: list[object] = []
+        self.dimensions: dict[str, int] = {}
 
     def get_collections(self):
         if self.fail:
             raise RuntimeError("qdrant is down")
         return FakeCollections(self.collections)
 
+    def get_collection(self, *, collection_name):
+        if collection_name not in self.dimensions:
+            raise RuntimeError("not found")
+        return FakeCollectionInfo(self.dimensions[collection_name])
+
+    def delete_collection(self, *, collection_name):
+        self.collections = [name for name in self.collections if name != collection_name]
+        self.dimensions.pop(collection_name, None)
+
     def create_collection(self, *, collection_name, vectors_config):
         self.collections.append(collection_name)
+        self.dimensions[collection_name] = int(vectors_config.size)
 
     def upsert(self, *, collection_name, points):
         for point in points:
@@ -225,3 +243,25 @@ def test_a_store_error_is_wrapped() -> None:
     store = make_store(BrokenClient(collections=["test_collection"]))
     with pytest.raises(VectorStoreError):
         store.upsert_points([VectorPoint(id="a", vector=[0.0] * 8, payload={})])
+
+
+def test_a_collection_built_for_another_model_is_reported() -> None:
+    """The vectors of one model cannot be read with another one."""
+    client = FakeQdrantClient(collections=["test_collection"])
+    client.dimensions["test_collection"] = 384
+    store = make_store(client)
+    assert store.collection_dimension() == 384
+    with pytest.raises(VectorStoreError) as error:
+        store.ensure_collection(256)
+    assert "256" in str(error.value)
+    assert "384" in str(error.value)
+
+
+def test_a_collection_can_be_removed_for_a_new_model() -> None:
+    client = FakeQdrantClient(collections=["test_collection"])
+    client.dimensions["test_collection"] = 384
+    store = make_store(client)
+    assert store.delete_collection() is True
+    assert "test_collection" not in client.collections
+    assert store.ensure_collection(256) is True
+    assert store.collection_dimension() == 256

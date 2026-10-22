@@ -746,6 +746,13 @@ class RequirementService:
 
     def delete_document(self, document_id: str, company_id: str, user_id: str) -> None:
         document = self.get_document(document_id, company_id)
+        # The indexed passages go with the document, so a deleted document
+        # cannot still be found by a search.
+        from app.services.document_lifecycle import DocumentLifecycleService
+
+        DocumentLifecycleService(self.db, settings=self.settings).remove_tender_document(
+            company_id, document_id
+        )
         self.requirements.delete_for_document(document_id, company_id)
         self.pages.delete_for_document(document_id, company_id)
         self.documents.delete(document_id, company_id)

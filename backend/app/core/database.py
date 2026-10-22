@@ -71,6 +71,10 @@ class Database:
         return self.db["company_documents"]
 
     @property
+    def company_pages(self):
+        return self.db["company_pages"]
+
+    @property
     def tenders(self):
         return self.db["tenders"]
 
@@ -155,6 +159,10 @@ class Database:
         self.company_documents.create_index(
             [("company_id", ASCENDING), ("document_type", ASCENDING)],
             name="ix_documents_company_type",
+        )
+        self.company_pages.create_index(
+            [("company_id", ASCENDING), ("document_id", ASCENDING)],
+            name="ix_company_pages_document",
         )
         self.company_documents.create_index(
             [("company_id", ASCENDING), ("expiry_date", ASCENDING)],

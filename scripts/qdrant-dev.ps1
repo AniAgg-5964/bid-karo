@@ -20,7 +20,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('start', 'stop', 'status', 'restart')]
+    [ValidateSet('start', 'stop', 'status', 'restart', 'reset')]
     [string]$Action = 'status',
 
     [int]$Port = 6333
@@ -130,5 +130,19 @@ switch ($Action) {
         & $PSScriptRoot 'qdrant-dev.ps1' stop
         & $PSScriptRoot 'qdrant-dev.ps1' start
         exit $LASTEXITCODE
+    }
+    'reset' {
+        # Removes the collection, for example after the embedding model
+        # changed. The documents stay in MongoDB and on disk, so they can be
+        # indexed again.
+        $collection = if ($env:QDRANT_COLLECTION_NAME) { $env:QDRANT_COLLECTION_NAME } else { 'bidkaro_knowledge' }
+        try {
+            Invoke-RestMethod -Uri "$url/collections/$collection" -Method Delete -TimeoutSec 10 | Out-Null
+            Write-Host "Removed the collection '$collection'. Index again to refill it."
+        } catch {
+            Write-Host "The collection '$collection' could not be removed: $($_.Exception.Message)"
+            exit 1
+        }
+        exit 0
     }
 }

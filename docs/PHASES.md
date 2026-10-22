@@ -189,6 +189,20 @@ The embedding providers were measured rather than assumed. The optional semantic
 
 One defect was found and fixed on the way: the assessment test compared an expiry against the local date while the code compares it against UTC, so it failed in the hour between local and UTC midnight. The test now uses the server's clock.
 
+## Qdrant integration, Phase 2 to Phase 4 (verified 2026-10-22)
+
+**Phase 2 - the ingestion.** `services/chunking.py` splits a page into passages that follow the document's structure: a heading starts a passage, a clause number is kept, a passage never mixes two sections, and the overlap is kept in a separate field so the passage itself stays a verbatim span of its page. `services/document_ingestion.py` reads the pages that are already stored, chunks them, embeds them in batches and writes them to Qdrant with the full provenance (company, tender, document, version, page, printed page, clause, heading, content hash, embedding model, indexed at). The point id is derived from the document, the content hash and the chunk index, so the same content always lands on the same points.
+
+**Phase 3 - identity and the life of a document.** Re-indexing the same content reports "unchanged" and writes nothing twice. A changed document has its old passages removed before the new ones are written. A failed run is recorded on the document with the reason, the partial passages are removed and a retry starts clean; a document is never marked indexed when it is not. A deleted document takes its passages and its cached pages with it, on both the tender and the company side. The collection keeps the dimension it was built with, and a model change is reported clearly instead of failing with a size error.
+
+**Phase 4 - the retrieval service.** `services/retrieval.py` is the only way into the index. The company filter is always applied and comes from the authenticated user, never from the request; the scope only decides what a search may see inside that company. Every passage is checked against the page it names, and one that cannot be found there is reported as unverified. A store that is not available is an honest failure, never an empty answer presented as a result.
+
+Verification on 2026-10-22: backend `pytest` 201 passed (40 new tests), frontend `npm test` 22 passed, `npm run build` succeeded. A real 8-page tender PDF was uploaded through the ordinary upload endpoint, indexed into a local Qdrant 1.19.1 and searched with paraphrased questions: "What quality certificate does the bidder need?" returned the ISO 9001 clause (page 3, clause 3.3, verified against the page) and "When is the bid due and what is the security deposit?" returned the bid security clause (page 3, clause 3.6). The same file uploaded again left the chunk count unchanged, and the results only ever contained the signed-in company's passages.
+
+The two embedding providers were measured on the same documents and questions rather than assumed. The semantic one puts the bid-security clause first for the security-deposit question, where the lexical one returns an unrelated performance-security-ranking passage. The semantic model is therefore the default; the lexical one stays as the documented fallback for a machine that cannot download the model.
+
+One pre-existing defect was fixed on the way: `STORAGE_DIR=./storage` in `.env` was relative, so the server, the scripts and the tests each used a different folder and an uploaded document could not be found again. A relative storage path is now resolved against the repository.
+
 ## Later-phase guardrails
 
 - Phase 2 is not complete with mocked TinyFish responses.

@@ -292,9 +292,9 @@ EMBEDDING_MODEL=
 EMBEDDING_DIMENSION=0
 ```
 
-- `EMBEDDING_PROVIDER=hashing` is deterministic, downloads nothing and costs nothing. It behaves like a lexical vectoriser: exact on wording, weak on meaning.
-- `EMBEDDING_PROVIDER=model2vec` uses a small local semantic model that is downloaded once (~30 MB, free to run). It was measured here: two wordings of the same wage clause score 0.78 against each other and 0.31 against an unrelated clause.
-- `EMBEDDING_DIMENSION=0` means "use the provider's own dimension". The dimension is never a constant chosen for an assumed provider.
+- `EMBEDDING_PROVIDER=model2vec` is the default: a small local semantic model that is downloaded once (~30 MB, free to run) and then works offline. It was measured here: two wordings of the same wage clause score 0.78 against each other and 0.31 against an unrelated clause, and on a real tender it puts the bid-security clause first for the question "when is the bid due and what is the security deposit", where the lexical provider does not.
+- `EMBEDDING_PROVIDER=hashing` is the fallback: deterministic, downloads nothing, but it matches wording rather than meaning.
+- `EMBEDDING_DIMENSION=0` means "use the provider's own dimension". The dimension is never a constant chosen for an assumed provider. The collection keeps the dimension it was built with: after a model change, `scripts\qdrant-dev.ps1 reset` removes the collection and the documents are indexed again from MongoDB and the stored files.
 
 Check the state of the stack at any time:
 
@@ -305,6 +305,39 @@ GET /api/knowledge/collection -> creates the collection if it is missing
 ```
 
 When Qdrant is not running the application still starts and still serves everything else; retrieval reports itself as unavailable rather than failing the request.
+
+### Indexing and searching
+
+```text
+POST /api/knowledge/tenders/{id}/index   -> queue the indexing of a tender's documents
+GET  /api/knowledge/tenders/{id}/status  -> how far the indexing got
+POST /api/knowledge/documents/index      -> queue the indexing of the company's own documents
+GET  /api/knowledge/documents/status     -> the same for the company documents
+POST /api/knowledge/search               -> search the passages
+```
+
+A search takes a plain question and returns passages with the document, the page, the clause and whether the passage was found on the page it names:
+
+```json
+{
+  "query": "How much money must the company have earned over the last three years?",
+  "scope": "tender",
+  "tender_id": "<tender id>",
+  "limit": 3
+}
+```
+
+The scopes are `tender`, `company_evidence`, `legal_reference`, `tender_with_references` and `all`. The company always comes from the signed-in user, so a search can only reach that company's passages.
+
+### The end-to-end check
+
+```powershell
+.\scripts\qdrant-dev.ps1 start
+cd backend; .\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
+.\backend\.venv\Scripts\python.exe scripts\demo-retrieval.py
+```
+
+The script uploads a real tender PDF through the ordinary upload endpoint, indexes it, asks three questions in plain language, shows the passages with their page and clause, shows that the company's own certificates are searchable, and checks that the same file uploaded again does not double the index.
 
 ## Tests
 
@@ -320,7 +353,7 @@ npm test
 npm run build
 ```
 
-Backend tests use `mongomock` and a fake email service; they need no live MongoDB, TinyFish or Gmail account. Current local result: 161 backend tests and 22 frontend tests pass, and the production build succeeds.
+Backend tests use `mongomock` and a fake email service; they need no live MongoDB, TinyFish or Gmail account. Current local result: 201 backend tests and 22 frontend tests pass, and the production build succeeds.
 
 ## Design constraints
 

@@ -16,7 +16,12 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-JobKind = Literal["package_ingest", "tender_analysis", "legal_research"]
+JobKind = Literal[
+    "package_ingest",
+    "tender_analysis",
+    "legal_research",
+    "knowledge_index",
+]
 JobStatus = Literal["queued", "running", "done", "failed"]
 StepStatus = Literal["pending", "running", "done", "failed", "skipped"]
 

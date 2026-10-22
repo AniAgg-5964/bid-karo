@@ -86,6 +86,57 @@ def _tender_context(db: Database, tender_id: str, company_id: str) -> dict:
     }
 
 
+def indexing_step(context: JobContext) -> dict:
+    """Index the tender's documents into the retrieval store.
+
+    The store is an index, not a dependency: when it is not available the
+    other steps still run, and the summary says what happened.
+    """
+    from app.services.document_ingestion import DocumentIngestionService
+    from app.services.embeddings import build_embedding_provider
+    from app.services.vector_store import build_vector_store
+
+    settings = get_settings()
+    tender_id = context.tender_id
+    company_id = context.company_id
+    if not tender_id or not company_id:
+        raise ValueError("The job has no tender to index.")
+
+    service = DocumentIngestionService(
+        context.db,
+        StorageService(settings.storage_dir, settings.max_upload_mb),
+        build_embedding_provider(settings),
+        build_vector_store(settings),
+        settings=settings,
+    )
+    result = service.index_tender(company_id, tender_id)
+    result["vector_store"] = service.store_status()
+    return result
+
+
+def index_company_step(context: JobContext) -> dict:
+    """Index the company's own documents into the retrieval store."""
+    from app.services.document_ingestion import DocumentIngestionService
+    from app.services.embeddings import build_embedding_provider
+    from app.services.vector_store import build_vector_store
+
+    settings = get_settings()
+    company_id = context.company_id
+    if not company_id:
+        raise ValueError("The job has no company to index.")
+
+    service = DocumentIngestionService(
+        context.db,
+        StorageService(settings.storage_dir, settings.max_upload_mb),
+        build_embedding_provider(settings),
+        build_vector_store(settings),
+        settings=settings,
+    )
+    result = service.index_company(company_id)
+    result["vector_store"] = service.store_status()
+    return result
+
+
 def requirements_step(context: JobContext) -> dict:
     """Extract cited requirements from the tender's documents."""
     from app.services.requirement_service import RequirementService
@@ -276,6 +327,8 @@ def legal_research_step(context: JobContext) -> dict:
 def build_handlers() -> dict:
     """The step handlers the job worker runs."""
     return {
+        "indexing": indexing_step,
+        "index_company": index_company_step,
         "requirements": requirements_step,
         "recommendations": recommendations_step,
         "verification": verification_step,

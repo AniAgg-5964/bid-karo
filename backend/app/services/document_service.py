@@ -85,6 +85,10 @@ class DocumentService:
 
     def delete(self, document_id: str, company_id: str, user_id: str) -> None:
         document = self.get(document_id, company_id)
+        # The indexed passages go with the document.
+        from app.services.document_lifecycle import DocumentLifecycleService
+
+        DocumentLifecycleService(self.db).remove_company_document(company_id, document_id)
         deleted = self.documents.delete_for_company(document_id, company_id)
         if not deleted:
             raise NotFoundError("Document not found.")

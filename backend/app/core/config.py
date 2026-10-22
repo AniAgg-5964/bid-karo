@@ -35,6 +35,21 @@ class Settings(BaseSettings):
     storage_dir: Path = ROOT_DIR / "storage"
     max_upload_mb: int = 25
 
+    @field_validator("storage_dir", mode="after")
+    @classmethod
+    def _resolve_storage_dir(cls, value: Path) -> Path:
+        """A relative storage path is relative to the repository, not to the
+        working directory.
+
+        The server, the scripts and the tests are started from different
+        directories. Without this, the same setting pointed at a different
+        folder in each of them, and an uploaded document could not be found
+        again.
+        """
+        if not value.is_absolute():
+            return (ROOT_DIR / value).resolve()
+        return value
+
     # Gmail SMTP OTP delivery. Use a Google App Password, never the account password.
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 465
@@ -104,7 +119,7 @@ class Settings(BaseSettings):
 
     # Embeddings. The provider decides the dimension; it is never hardcoded
     # from an assumed provider.
-    embedding_provider: str = "hashing"
+    embedding_provider: str = "model2vec"
     embedding_model: str = ""
     embedding_dimension: int = 0  # 0 means the provider's own dimension
     embedding_batch_size: int = 32
