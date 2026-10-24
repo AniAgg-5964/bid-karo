@@ -70,7 +70,7 @@ export function AuthShell({ title, subtitle, children, footer }) {
           </div>
         </div>
 
-        <p className="relative text-xs text-navy-500 dark:text-navy-300">
+        <p className="relative text-xs text-navy-400">
           © {new Date().getFullYear()} BidKaro · Built for Indian public procurement
         </p>
       </aside>
@@ -84,7 +84,7 @@ export function AuthShell({ title, subtitle, children, footer }) {
           <p className="mt-2 text-sm muted">{subtitle}</p>
           <div className="mt-8">{children}</div>
           {footer ? <div className="mt-6 text-sm muted">{footer}</div> : null}
-          <p className="mt-10 flex items-start gap-2 text-[11px] leading-5 text-navy-500 dark:text-navy-300">
+          <p className="mt-10 flex items-start gap-2 text-[11px] leading-5 text-navy-400">
             <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             {t("auth.termsNote")}
           </p>

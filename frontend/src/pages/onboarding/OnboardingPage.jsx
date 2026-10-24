@@ -136,7 +136,7 @@ export function OnboardingPage() {
                 logout();
                 navigate("/login", { replace: true });
               }}
-              className="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-navy-500 hover:bg-navy-50 hover:text-navy-800 dark:hover:bg-navy-800 sm:inline-flex dark:text-navy-300"
+              className="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-navy-500 hover:bg-navy-50 hover:text-navy-800 dark:hover:bg-navy-800 sm:inline-flex"
             >
               <LogOut className="h-3.5 w-3.5" />
               {t("common.signOut")}
@@ -157,7 +157,7 @@ export function OnboardingPage() {
         <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
           <aside>
             <div className="surface p-4">
-              <p className="mb-3 text-xs font-semibold text-navy-500 dark:text-navy-300">
+              <p className="mb-3 text-xs font-semibold text-navy-400">
                 {t("onboarding.stepOf", { current: step + 1, total: STEPS.length })}
               </p>
               <Progress value={((step + 1) / STEPS.length) * 100} label={t("onboarding.completeness")} />
@@ -204,7 +204,7 @@ export function OnboardingPage() {
               type="button"
               onClick={skip}
               disabled={saving}
-              className="mt-3 w-full rounded-lg px-3 py-2 text-xs font-medium text-navy-500 hover:bg-white hover:text-navy-800 dark:hover:bg-navy-900 dark:hover:text-white dark:text-navy-300"
+              className="mt-3 w-full rounded-lg px-3 py-2 text-xs font-medium text-navy-500 hover:bg-white hover:text-navy-800 dark:hover:bg-navy-900 dark:hover:text-white"
             >
               {t("common.skip")}
             </button>
@@ -314,31 +314,31 @@ export function OnboardingPage() {
 
                   <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-navy-500 dark:text-navy-300">{t("auth.companyName")}</dt>
+                      <dt className="text-xs uppercase tracking-wide text-navy-400">{t("auth.companyName")}</dt>
                       <dd className="mt-0.5 font-medium text-navy-900 dark:text-white">{form.name || "—"}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-navy-500 dark:text-navy-300">{t("company.legalName")}</dt>
+                      <dt className="text-xs uppercase tracking-wide text-navy-400">{t("company.legalName")}</dt>
                       <dd className="mt-0.5 text-navy-800 dark:text-navy-100">{form.legal_name || "—"}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-navy-500 dark:text-navy-300">{t("company.sectors")}</dt>
+                      <dt className="text-xs uppercase tracking-wide text-navy-400">{t("company.sectors")}</dt>
                       <dd className="mt-0.5 text-navy-800 dark:text-navy-100">
                         {form.sectors.length ? form.sectors.join(", ") : "—"}
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-navy-500 dark:text-navy-300">{t("company.regions")}</dt>
+                      <dt className="text-xs uppercase tracking-wide text-navy-400">{t("company.regions")}</dt>
                       <dd className="mt-0.5 text-navy-800 dark:text-navy-100">
                         {form.regions.length ? form.regions.join(", ") : "—"}
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-navy-500 dark:text-navy-300">{t("nav.documents")}</dt>
+                      <dt className="text-xs uppercase tracking-wide text-navy-400">{t("nav.documents")}</dt>
                       <dd className="mt-0.5 text-navy-800 dark:text-navy-100">{documents.length}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-navy-500 dark:text-navy-300">{t("company.products")}</dt>
+                      <dt className="text-xs uppercase tracking-wide text-navy-400">{t("company.products")}</dt>
                       <dd className="mt-0.5 text-navy-800 dark:text-navy-100">
                         {form.products_services.length ? form.products_services.join(", ") : "—"}
                       </dd>

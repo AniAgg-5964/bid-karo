@@ -5,24 +5,24 @@ import { cn } from "../../lib/utils";
 
 const VARIANTS = {
   primary:
-    "bg-teal-700 text-white hover:bg-teal-800 focus-visible:ring-teal-500 disabled:bg-teal-700/50",
+    "bg-teal-600 text-white shadow-sm hover:bg-teal-700 focus-visible:ring-teal-500 disabled:bg-teal-600/50",
   secondary:
     "bg-navy-900 text-white hover:bg-navy-800 focus-visible:ring-navy-700 disabled:bg-navy-900/50",
   outline:
-    "border border-navy-200 bg-white text-navy-800 hover:border-navy-300 hover:bg-navy-50 dark:border-navy-700 dark:bg-navy-900 dark:text-navy-100 dark:hover:bg-navy-800",
+    "border border-navy-200 bg-white text-navy-700 hover:border-navy-300 hover:bg-navy-50 dark:border-navy-700 dark:bg-navy-900 dark:text-navy-100 dark:hover:bg-navy-800",
   ghost:
-    "text-navy-700 hover:bg-navy-100 dark:text-navy-200 dark:hover:bg-navy-800",
+    "text-navy-600 hover:bg-navy-100 hover:text-navy-900 dark:text-navy-300 dark:hover:bg-navy-800 dark:hover:text-white",
   danger:
     "bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500 disabled:bg-red-600/50",
   subtle:
-    "bg-teal-50 text-teal-800 hover:bg-teal-100 dark:bg-teal-950 dark:text-teal-200 dark:hover:bg-teal-900",
+    "bg-teal-50 text-teal-700 hover:bg-teal-100 dark:bg-teal-900/40 dark:text-teal-200 dark:hover:bg-teal-900",
 };
 
 const SIZES = {
   sm: "h-8 gap-1.5 rounded-lg px-3 text-xs",
-  md: "h-10 gap-2 rounded-xl px-4 text-sm",
-  lg: "h-11 gap-2 rounded-xl px-5 text-sm",
-  icon: "h-9 w-9 rounded-lg",
+  md: "h-9 gap-2 rounded-lg px-4 text-[13px]",
+  lg: "h-10 gap-2 rounded-lg px-5 text-sm",
+  icon: "h-8 w-8 rounded-lg",
 };
 
 export const Button = forwardRef(function Button(

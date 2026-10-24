@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 
 import { api } from "../lib/api";
-import artEmptyEvidence from "../assets/art-empty-evidence.svg";
 import { currentLocale } from "../i18n";
 import { useToast } from "../contexts/ToastContext";
 import { PageHeader } from "../components/ui/PageHeader";
@@ -160,7 +159,6 @@ export function DocumentsPage() {
             </div>
           ) : empty === "empty" ? (
             <EmptyState
-              art={artEmptyEvidence}
               icon={FileText}
               title={t("documents.emptyTitle")}
               description={t("documents.emptyBody")}
@@ -178,7 +176,7 @@ export function DocumentsPage() {
               <div className="hidden overflow-x-auto md:block">
                 <table className="w-full min-w-[680px] border-collapse text-left">
                   <thead>
-                    <tr className="border-b border-navy-100 text-[11px] uppercase tracking-wide text-navy-500 dark:border-navy-800 dark:text-navy-300">
+                    <tr className="border-b border-navy-100 text-[11px] uppercase tracking-wide text-navy-400 dark:border-navy-800">
                       <th className="pb-2.5 font-semibold">{t("documents.columns.document")}</th>
                       <th className="pb-2.5 font-semibold">{t("documents.columns.type")}</th>
                       <th className="pb-2.5 font-semibold">{t("documents.columns.issuer")}</th>

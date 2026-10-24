@@ -20,8 +20,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui
 import { EmptyState } from "../ui/EmptyState";
 import { Skeleton } from "../ui/Spinner";
 import { cn, formatDateTime } from "../../lib/utils";
-import { sourceFreshness } from "../../lib/trust";
-import { ProvenanceBadge } from "../ui/ProvenanceBadge";
 
 function fieldLabel(field, t) {
   if (!field) return "—";
@@ -87,7 +85,7 @@ export function ChangeRow({ change, onReview, busy, showTender = false }) {
 
       <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
         <div className="rounded-lg bg-navy-50 px-3 py-2 dark:bg-navy-800">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-navy-500 dark:text-navy-300">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-navy-400">
             {t("tenders.detail.changesPanel.from")}
           </p>
           <p className="mt-0.5 break-words text-xs text-navy-700 dark:text-navy-200">
@@ -119,7 +117,7 @@ export function ChangeRow({ change, onReview, busy, showTender = false }) {
   );
 }
 
-export function TenderChangesPanel({ tenderId, tender = null }) {
+export function TenderChangesPanel({ tenderId }) {
   const { t } = useTranslation();
   const toast = useToast();
   const [changes, setChanges] = useState([]);
@@ -262,23 +260,7 @@ export function TenderChangesPanel({ tenderId, tender = null }) {
                 })}
               </span>
             ) : null}
-            {/* The state of the source check, said plainly. A source that was
-                never checked is not a source that is up to date. */}
-            {tender?.source_url ? (
-              <ProvenanceBadge
-                state="source_referenced"
-                tone={sourceFreshness(tender).tone}
-                icon={sourceFreshness(tender).tone === "review" ? "shield-question" : "link"}
-                label={t(sourceFreshness(tender).labelKey)}
-              />
-            ) : null}
           </div>
-
-          {tender?.source_url && !tender?.source_retrieved_at ? (
-            <p className="rounded-lg bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-              {t("tenders.context.neverCheckedBody")}
-            </p>
-          ) : null}
 
           {loading ? (
             <div className="space-y-2">
@@ -340,7 +322,7 @@ export function TenderChangesPanel({ tenderId, tender = null }) {
                     </p>
                   </div>
                   {snapshot.source_retrieved_at ? (
-                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-navy-500 dark:text-navy-300">
+                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-navy-400">
                       {t("tenders.requirements.retrieved", {
                         date: formatDateTime(snapshot.source_retrieved_at, currentLocale()),
                       })}

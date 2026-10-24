@@ -1,19 +1,20 @@
 import { cn } from "../../lib/utils";
 
 const TONES = {
-  neutral: "bg-navy-100 text-navy-700 dark:bg-navy-800 dark:text-navy-200",
-  teal: "bg-teal-50 text-teal-800 dark:bg-teal-950 dark:text-teal-200",
-  green: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200",
-  amber: "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
-  red: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200",
-  blue: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-200",
+  neutral: "bg-navy-100 text-navy-600 dark:bg-navy-800 dark:text-navy-200",
+  teal: "bg-teal-50 text-teal-700 dark:bg-teal-900/40 dark:text-teal-200",
+  green: "bg-teal-50 text-teal-700 dark:bg-teal-900/40 dark:text-teal-200",
+  emerald: "bg-teal-50 text-teal-700 dark:bg-teal-900/40 dark:text-teal-200",
+  amber: "bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200",
+  red: "bg-red-50 text-red-600 dark:bg-red-900/40 dark:text-red-200",
+  blue: "bg-sky-50 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200",
 };
 
 export function Badge({ tone = "neutral", className, children }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold leading-none",
+        "inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-medium leading-5",
         TONES[tone] || TONES.neutral,
         className,
       )}

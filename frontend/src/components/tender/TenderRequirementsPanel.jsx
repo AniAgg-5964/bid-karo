@@ -1,16 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  AlertTriangle,
   Check,
+  CheckCircle2,
+  CircleAlert,
   ExternalLink,
   Eye,
   FileText,
   Flag,
   Link2,
+  Search,
   ShieldCheck,
   ShieldQuestion,
   Sparkles,
   X,
+  XCircle,
 } from "lucide-react";
 
 import { api } from "../../lib/api";
@@ -18,30 +23,35 @@ import {
   MANDATORY_VALUES,
   REQUIREMENT_CATEGORIES,
   VERIFICATION_STATUSES,
-  categoryTone,
   requirementQuery,
 } from "../../lib/requirements";
 import { cn, formatDate, formatDateTime } from "../../lib/utils";
 import { currentLocale } from "../../i18n";
 import { useToast } from "../../contexts/ToastContext";
-import { Badge, StatusBadge } from "../ui/Badge";
+import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
-import { EvidenceDock } from "./EvidenceDock";
-import { EvidenceThread } from "./EvidenceThread";
-import { ProvenanceBadge } from "../ui/ProvenanceBadge";
-import { requirementTrust } from "../../lib/trust";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/Card";
+import { Card, CardContent } from "../ui/Card";
 import { EmptyState } from "../ui/EmptyState";
-import { Select } from "../ui/Field";
+import { Input, Select } from "../ui/Field";
+import { KebabMenu } from "../ui/Menu";
 import { Modal } from "../ui/Modal";
+import { PillTabs } from "../ui/Tabs";
 import { Skeleton } from "../ui/Spinner";
 
-function SummaryTile({ label, value, tone = "text-navy-900 dark:text-white" }) {
+function StatusCell({ status, t }) {
+  const meta =
+    status === "verified"
+      ? { Icon: CheckCircle2, className: "text-teal-600 dark:text-teal-300", key: "tenders.assessment.verified", fallback: "Verified" }
+      : status === "needs_review"
+        ? { Icon: AlertTriangle, className: "text-amber-500", key: "tenders.requirements.verification.needs_review", fallback: "Needs review" }
+        : status === "rejected"
+          ? { Icon: XCircle, className: "text-red-500", key: "tenders.requirements.verification.rejected", fallback: "Rejected" }
+          : { Icon: CircleAlert, className: "text-navy-400", key: "tenders.requirements.notFound", fallback: "Not found" };
   return (
-    <div className="rounded-xl bg-navy-50 p-3 dark:bg-navy-800">
-      <p className="text-[10px] font-bold uppercase tracking-wide text-navy-500 dark:text-navy-300">{label}</p>
-      <p className={cn("mt-1 text-lg font-semibold", tone)}>{value}</p>
-    </div>
+    <span className={cn("inline-flex items-center gap-1.5 text-[12px] font-medium", meta.className)}>
+      <meta.Icon className="h-4 w-4 shrink-0" />
+      {t(meta.key, { defaultValue: meta.fallback })}
+    </span>
   );
 }
 
@@ -53,11 +63,14 @@ export function TenderRequirementsPanel({ tenderId, refreshKey = 0 }) {
   const [total, setTotal] = useState(0);
   const [summary, setSummary] = useState({ total: 0, verified: 0, unverified: 0, needs_review: 0, documents: 0 });
   const [filters, setFilters] = useState({ category: "", verification_status: "", mandatory: "" });
+  const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState(null);
 
-  const [dockRequirement, setDockRequirement] = useState(null);
+  const [pageModal, setPageModal] = useState(null);
+  const [pageText, setPageText] = useState(null);
+  const [pageLoading, setPageLoading] = useState(false);
 
   const [evidenceModal, setEvidenceModal] = useState(null);
   const [evidenceData, setEvidenceData] = useState(null);
@@ -96,6 +109,16 @@ export function TenderRequirementsPanel({ tenderId, refreshKey = 0 }) {
   const updateFilter = (field) => (event) =>
     setFilters((current) => ({ ...current, [field]: event.target.value }));
 
+  const visible = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (!term) return items;
+    return items.filter((item) =>
+      [item.title, item.excerpt, item.obligation, item.clause_reference]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(term)),
+    );
+  }, [items, query]);
+
   const review = async (requirement, verificationStatus) => {
     setBusyId(requirement.id);
     try {
@@ -129,8 +152,20 @@ export function TenderRequirementsPanel({ tenderId, refreshKey = 0 }) {
     }
   };
 
-  const viewPage = (requirement) => {
-    setDockRequirement(requirement);
+  const viewPage = async (requirement) => {
+    setPageModal(requirement);
+    setPageText(null);
+    setPageLoading(true);
+    try {
+      const page = await api.get(
+        `/tender-documents/${requirement.document_id}/pages/${requirement.page_index}`,
+      );
+      setPageText(page);
+    } catch (err) {
+      toast.error(err.message === "NETWORK_ERROR" ? t("errors.network") : err.message || t("errors.generic"));
+    } finally {
+      setPageLoading(false);
+    }
   };
 
   const openEvidence = async (requirement) => {
@@ -182,288 +217,325 @@ export function TenderRequirementsPanel({ tenderId, refreshKey = 0 }) {
     }
   };
 
+  const statusPills = [
+    { key: "", label: t("common.all"), count: summary.total },
+    {
+      key: "verified",
+      label: t("tenders.assessment.verified", { defaultValue: "Verified" }),
+      count: summary.verified,
+      icon: CheckCircle2,
+      tone: "green",
+    },
+    {
+      key: "needs_review",
+      label: t("tenders.requirements.verification.needs_review"),
+      count: summary.needs_review || 0,
+      icon: AlertTriangle,
+      tone: "amber",
+    },
+    {
+      key: "unverified",
+      label: t("tenders.requirements.notFound", { defaultValue: "Not found" }),
+      count: summary.unverified,
+      icon: CircleAlert,
+      tone: "neutral",
+    },
+  ];
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>{t("tenders.requirements.title")}</CardTitle>
-        <CardDescription>{t("tenders.requirements.subtitle")}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4 pt-2">
-        <div className="grid gap-2 sm:grid-cols-5">
-          <SummaryTile label={t("tenders.requirements.summary.total")} value={summary.total} />
-          <SummaryTile
-            label={t("tenders.requirements.summary.verified")}
-            value={summary.verified}
-            tone="text-emerald-700 dark:text-emerald-300"
-          />
-          <SummaryTile
-            label={t("tenders.requirements.summary.unverified")}
-            value={summary.unverified}
-            tone="text-amber-700 dark:text-amber-300"
-          />
-          <SummaryTile
-            label={t("tenders.requirements.summary.needsReview")}
-            value={summary.needs_review || 0}
-            tone="text-amber-700 dark:text-amber-300"
-          />
-          <SummaryTile label={t("tenders.requirements.summary.documents")} value={summary.documents} />
+      <CardContent className="p-0">
+        <div className="flex flex-col gap-2.5 border-b border-navy-100 p-5 lg:flex-row lg:items-center dark:border-navy-800">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-navy-300" />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t("tenders.requirements.searchPlaceholder")}
+              aria-label={t("common.search")}
+              className="h-9 rounded-lg border-navy-200 py-1.5 pl-9 text-[13px]"
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-2 lg:w-auto lg:shrink-0">
+            <Select
+              value={filters.category}
+              onChange={updateFilter("category")}
+              aria-label={t("tenders.requirements.filters.category")}
+              className="h-9 rounded-lg border-navy-200 py-1.5 text-[12px]"
+            >
+              <option value="">{t("tenders.requirements.allSections")}</option>
+              {REQUIREMENT_CATEGORIES.map((category) => (
+                <option key={category} value={category}>
+                  {t(`tenders.requirements.categories.${category}`)}
+                </option>
+              ))}
+            </Select>
+            <Select
+              value={filters.mandatory}
+              onChange={updateFilter("mandatory")}
+              aria-label={t("tenders.requirements.filters.mandatory")}
+              className="h-9 rounded-lg border-navy-200 py-1.5 text-[12px]"
+            >
+              <option value="">{t("tenders.requirements.allTypes")}</option>
+              {MANDATORY_VALUES.map((value) => (
+                <option key={value} value={value}>
+                  {t(`tenders.requirements.mandatoryValues.${value}`)}
+                </option>
+              ))}
+            </Select>
+            <Select
+              value={filters.verification_status}
+              onChange={updateFilter("verification_status")}
+              aria-label={t("tenders.requirements.filters.verification")}
+              className="h-9 rounded-lg border-navy-200 py-1.5 text-[12px]"
+            >
+              <option value="">{t("tenders.requirements.allStatuses")}</option>
+              {VERIFICATION_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {t(`tenders.requirements.verification.${status}`)}
+                </option>
+              ))}
+            </Select>
+          </div>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-3">
-          <Select
-            value={filters.category}
-            onChange={updateFilter("category")}
-            aria-label={t("tenders.requirements.filters.category")}
-          >
-            <option value="">{t("tenders.requirements.filters.allCategories")}</option>
-            {REQUIREMENT_CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {t(`tenders.requirements.categories.${category}`)}
-              </option>
-            ))}
-          </Select>
-          <Select
+        <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-3.5">
+          <PillTabs
+            items={statusPills}
             value={filters.verification_status}
-            onChange={updateFilter("verification_status")}
-            aria-label={t("tenders.requirements.filters.verification")}
-          >
-            <option value="">{t("tenders.requirements.filters.allVerification")}</option>
-            {VERIFICATION_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {t(`tenders.requirements.verification.${status}`)}
-              </option>
-            ))}
-          </Select>
-          <Select
-            value={filters.mandatory}
-            onChange={updateFilter("mandatory")}
-            aria-label={t("tenders.requirements.filters.mandatory")}
-          >
-            <option value="">{t("tenders.requirements.filters.allMandatory")}</option>
-            {MANDATORY_VALUES.map((value) => (
-              <option key={value} value={value}>
-                {t(`tenders.requirements.mandatoryValues.${value}`)}
-              </option>
-            ))}
-          </Select>
+            onChange={(key) => setFilters((current) => ({ ...current, verification_status: key }))}
+            ariaLabel={t("tenders.requirements.filters.verification")}
+          />
         </div>
 
         {error ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+          <div className="m-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
             {error}
           </div>
         ) : null}
 
         {loading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-40 w-full" />
-            <Skeleton className="h-40 w-full" />
+          <div className="space-y-2 p-5">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
           </div>
-        ) : items.length ? (
-          <div className="space-y-3">
-            {items.map((requirement) => {
-              const trust = requirementTrust(requirement);
-              return (
-              <article
-                key={requirement.id}
-                className="rounded-xl border border-navy-100 p-4 transition hover:border-navy-200 dark:border-navy-800 dark:hover:border-navy-700"
-              >
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <h3 className="text-sm font-semibold text-navy-900 dark:text-white">
-                      {requirement.title}
-                    </h3>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                      <Badge tone={categoryTone(requirement.category)}>
-                        {t(`tenders.requirements.categories.${requirement.category}`)}
-                      </Badge>
-                      <StatusBadge
-                        status={requirement.verification_status}
-                        label={t(
-                          `tenders.requirements.verification.${requirement.verification_status}`,
-                        )}
-                      />
-                      <ProvenanceBadge
-                        state={trust.state}
-                        tone={trust.tone}
-                        icon={trust.icon}
-                        label={t(`trust.states.${trust.state}`)}
-                        size="sm"
-                      />
-                      <Badge tone={requirement.mandatory === "yes" ? "amber" : "neutral"}>
-                        {t(`tenders.requirements.mandatoryValues.${requirement.mandatory}`)}
-                      </Badge>
-                      {requirement.text_source === "ocr" ? (
-                        <Badge tone="amber">{t("tenders.requirements.ocrBadge")}</Badge>
-                      ) : null}
-                      {requirement.evidence_status && requirement.evidence_status !== "none" ? (
-                        <Badge tone={requirement.evidence_status === "confirmed" ? "emerald" : "neutral"}>
-                          {t(`tenders.requirements.evidence.statuses.${requirement.evidence_status}`)}
-                        </Badge>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 flex-wrap gap-1.5">
-                    <Button size="sm" variant="outline" onClick={() => openEvidence(requirement)}>
-                      <Link2 className="h-3.5 w-3.5" />
-                      {requirement.evidence_status === "confirmed"
-                        ? t("tenders.requirements.evidence.review")
-                        : t("tenders.requirements.evidence.link")}
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => viewPage(requirement)}>
-                      <Eye className="h-3.5 w-3.5" />
-                      {t("tenders.requirements.viewPage")}
-                    </Button>
-                    {requirement.verification_status !== "verified" ? (
-                      <Button
-                        size="sm"
-                        variant="subtle"
-                        onClick={() => review(requirement, "verified")}
-                        loading={busyId === requirement.id}
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                        {t("tenders.requirements.confirm")}
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => review(requirement, "needs_review")}
-                        loading={busyId === requirement.id}
-                      >
-                        <Flag className="h-3.5 w-3.5" />
-                        {t("tenders.requirements.flag")}
-                      </Button>
-                    )}
-                    {requirement.verification_status !== "rejected" ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => review(requirement, "rejected")}
-                        loading={busyId === requirement.id}
-                        aria-label={t("tenders.requirements.reject")}
-                        title={t("tenders.requirements.reject")}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-
-                <blockquote className="mt-3 border-l-2 border-teal-300 bg-teal-50/50 px-3 py-2 text-sm leading-6 text-navy-800 dark:border-teal-700 dark:bg-teal-950/30 dark:text-navy-100">
-                  <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-teal-700 dark:text-teal-300">
-                    {t("tenders.requirements.excerpt")}
-                  </p>
-                  <p className="whitespace-pre-wrap">{requirement.excerpt}</p>
-                </blockquote>
-
-                <EvidenceThread
-                  requirement={requirement}
-                  onOpenSource={viewPage}
-                  className="mt-3"
-                />
-
-                {requirement.obligation && requirement.obligation !== requirement.excerpt ? (
-                  <div className="mt-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-navy-500 dark:text-navy-300">
-                      {t("tenders.requirements.interpretation")}
-                    </p>
-                    <p className="mt-1 text-sm leading-6 muted">{requirement.obligation}</p>
-                  </div>
-                ) : null}
-
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs muted">
-                  {requirement.document_title ? (
-                    <span className="inline-flex max-w-full items-center gap-1">
-                      <FileText className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{requirement.document_title}</span>
-                    </span>
-                  ) : null}
-                  {requirement.document_retrieved_at ? (
-                    <span>
-                      {t("tenders.requirements.retrieved", {
-                        date: formatDateTime(
-                          requirement.document_retrieved_at,
-                          currentLocale(),
-                        ),
-                      })}
-                    </span>
-                  ) : null}
-                  <span>
-                    {t("tenders.requirements.page", { page: requirement.page_index })}
-                  </span>
-                  {requirement.printed_page &&
-                  requirement.printed_page !== String(requirement.page_index) ? (
-                    <span>
-                      {t("tenders.requirements.printed", { label: requirement.printed_page })}
-                    </span>
-                  ) : null}
-                  {requirement.clause_reference ? (
-                    <span>
-                      {t("tenders.requirements.clause", { ref: requirement.clause_reference })}
-                    </span>
-                  ) : null}
-                  {requirement.form_reference ? (
-                    <span>
-                      {t("tenders.requirements.form", { ref: requirement.form_reference })}
-                    </span>
-                  ) : null}
-                  {requirement.source_url ? (
-                    <a
-                      href={requirement.source_url}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="inline-flex items-center gap-1 font-medium text-teal-700 hover:underline dark:text-teal-300"
+        ) : visible.length ? (
+          <div className="table-scroll mt-2 overflow-x-auto">
+            <table className="w-full min-w-[900px] border-collapse text-left">
+              <thead>
+                <tr className="border-y border-navy-100 bg-navy-50/50 text-[11px] font-medium text-navy-500 dark:border-navy-800 dark:bg-navy-800/40 dark:text-navy-300">
+                  <th scope="col" className="w-12 px-5 py-2.5 font-medium">#</th>
+                  <th scope="col" className="px-3 py-2.5 font-medium">{t("tenders.requirements.requirement")}</th>
+                  <th scope="col" className="w-32 px-3 py-2.5 font-medium">{t("tenders.requirements.type")}</th>
+                  <th scope="col" className="w-36 px-3 py-2.5 font-medium">{t("common.status")}</th>
+                  <th scope="col" className="w-44 px-3 py-2.5 font-medium">{t("tenders.requirements.source")}</th>
+                  <th scope="col" className="w-32 px-5 py-2.5 text-right font-medium">{t("common.actions")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((requirement, index) => {
+                  const mandatory = requirement.mandatory === "yes";
+                  return (
+                    <tr
+                      key={requirement.id}
+                      className="border-b border-navy-100 align-top transition last:border-0 hover:bg-navy-50/50 dark:border-navy-800 dark:hover:bg-navy-800/30"
                     >
-                      {t("tenders.requirements.source")}
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  ) : null}
-                </div>
-
-                {requirement.deadline_text ? (
-                  <p className="mt-2 text-xs text-navy-700 dark:text-navy-200">
-                    <span className="font-semibold">{t("tenders.requirements.deadline")}:</span>{" "}
-                    {requirement.deadline_text}
-                  </p>
-                ) : null}
-                {requirement.consequence_text ? (
-                  <p className="mt-1 text-xs text-navy-700 dark:text-navy-200">
-                    <span className="font-semibold">{t("tenders.requirements.consequence")}:</span>{" "}
-                    {requirement.consequence_text}
-                  </p>
-                ) : null}
-
-                {["unverified", "needs_review"].includes(requirement.verification_status) &&
-                requirement.verification_notes ? (
-                  <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                    {t("tenders.requirements.unverifiedNote", {
-                      reason: requirement.verification_notes,
-                    })}
-                  </p>
-                ) : null}
-              </article>
-              );
-            })}
+                      <td className="px-5 py-3.5 text-[12px] tabular-nums text-navy-400">
+                        {index + 1}
+                      </td>
+                      <td className="px-3 py-3.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="text-[13px] font-semibold leading-5 text-navy-900 dark:text-white">
+                            {requirement.title}
+                          </p>
+                          {requirement.text_source === "ocr" ? (
+                            <Badge tone="amber">{t("tenders.requirements.ocrBadge")}</Badge>
+                          ) : null}
+                          {requirement.evidence_status &&
+                          requirement.evidence_status !== "none" ? (
+                            <Badge tone={requirement.evidence_status === "confirmed" ? "green" : "neutral"}>
+                              {t(`tenders.requirements.evidence.statuses.${requirement.evidence_status}`)}
+                            </Badge>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 line-clamp-2 max-w-[560px] text-[12px] leading-5 text-navy-500 dark:text-navy-300">
+                          {requirement.excerpt}
+                        </p>
+                      </td>
+                      <td className="px-3 py-3.5">
+                        <div className="flex flex-wrap gap-1">
+                          <Badge tone="neutral">
+                            {t(`tenders.requirements.categories.${requirement.category}`)}
+                          </Badge>
+                          {mandatory ? (
+                            <Badge tone="amber">{t("tenders.requirements.mandatoryValues.yes")}</Badge>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3.5">
+                        <StatusCell status={requirement.verification_status} t={t} />
+                      </td>
+                      <td className="px-3 py-3.5">
+                        <div className="flex items-start gap-2">
+                          <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-navy-400" />
+                          <div className="min-w-0">
+                            {requirement.clause_reference ? (
+                              <p className="truncate text-[12px] font-medium text-navy-700 dark:text-navy-200">
+                                {t("tenders.requirements.clause", { ref: requirement.clause_reference })}
+                              </p>
+                            ) : null}
+                            <p className="text-[11px] text-navy-500 dark:text-navy-300">
+                              {t("tenders.requirements.pageShort", { page: requirement.page_index })}
+                              {requirement.printed_page &&
+                              requirement.printed_page !== String(requirement.page_index)
+                                ? ` · ${t("tenders.requirements.printed", { label: requirement.printed_page })}`
+                                : ""}
+                            </p>
+                            {requirement.form_reference ? (
+                              <p className="truncate text-[11px] text-navy-400">
+                                {t("tenders.requirements.form", { ref: requirement.form_reference })}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button size="sm" variant="outline" onClick={() => viewPage(requirement)}>
+                            {t("tenders.assessment.view", { defaultValue: "View" })}
+                          </Button>
+                          <KebabMenu
+                            label={t("common.actions")}
+                            items={[
+                              {
+                                label: t("tenders.requirements.viewPage"),
+                                icon: Eye,
+                                onClick: () => viewPage(requirement),
+                              },
+                              {
+                                label:
+                                  requirement.evidence_status === "confirmed"
+                                    ? t("tenders.requirements.evidence.review")
+                                    : t("tenders.requirements.evidence.link"),
+                                icon: Link2,
+                                onClick: () => openEvidence(requirement),
+                              },
+                              requirement.verification_status !== "verified"
+                                ? {
+                                    label: t("tenders.requirements.confirm"),
+                                    icon: Check,
+                                    onClick: () => review(requirement, "verified"),
+                                    disabled: busyId === requirement.id,
+                                  }
+                                : {
+                                    label: t("tenders.requirements.flag"),
+                                    icon: Flag,
+                                    onClick: () => review(requirement, "needs_review"),
+                                    disabled: busyId === requirement.id,
+                                  },
+                              requirement.verification_status !== "rejected"
+                                ? {
+                                    label: t("tenders.requirements.reject"),
+                                    icon: X,
+                                    danger: true,
+                                    onClick: () => review(requirement, "rejected"),
+                                    disabled: busyId === requirement.id,
+                                  }
+                                : null,
+                              requirement.source_url
+                                ? {
+                                    label: t("tenders.requirements.source"),
+                                    icon: ExternalLink,
+                                    onClick: () =>
+                                      window.open(requirement.source_url, "_blank", "noopener,noreferrer"),
+                                  }
+                                : null,
+                            ]}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         ) : (
-          <EmptyState
-            icon={Sparkles}
-            title={t("tenders.requirements.emptyTitle")}
-            description={
-              summary.documents
-                ? t("tenders.requirements.emptyFiltered")
-                : t("tenders.requirements.emptyBody")
-            }
-          />
+          <div className="p-6">
+            <EmptyState
+              icon={Sparkles}
+              title={t("tenders.requirements.emptyTitle")}
+              description={
+                summary.documents
+                  ? t("tenders.requirements.emptyFiltered")
+                  : t("tenders.requirements.emptyBody")
+              }
+            />
+          </div>
         )}
 
-        {!loading && filters.category === "" && filters.verification_status === "" && filters.mandatory === "" && total > items.length ? (
-          <p className="text-center text-xs muted">
-            {t("tenders.requirements.showing", { shown: items.length, total })}
-          </p>
+        {!loading && visible.length ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-navy-100 px-5 py-3 text-[11px] text-navy-400 dark:border-navy-800">
+            <span>
+              {t("tenders.requirements.showing", {
+                shown: visible.length,
+                total: query ? visible.length : total,
+              })}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <ShieldCheck className="h-3 w-3 text-teal-600" />
+              {t("tenders.requirements.subtitle")}
+            </span>
+          </div>
         ) : null}
       </CardContent>
+
+      <Modal
+        open={Boolean(pageModal)}
+        onClose={() => setPageModal(null)}
+        title={t("tenders.requirements.pageModalTitle")}
+        description={
+          pageModal
+            ? `${pageModal.title} · ${t("tenders.requirements.page", {
+                page: pageModal.page_index,
+              })}`
+            : ""
+        }
+        size="lg"
+        footer={
+          <Button variant="outline" onClick={() => setPageModal(null)}>
+            {t("common.close")}
+          </Button>
+        }
+      >
+        {pageLoading ? (
+          <Skeleton className="h-40 w-full" />
+        ) : pageText ? (
+          <div>
+            {pageText.text_source === "ocr" ? (
+              <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                {t("tenders.requirements.ocrPageNote")}
+              </div>
+            ) : null}
+            <div className="mb-2 flex items-center gap-2 text-xs muted">
+              {pageText.has_text ? (
+                <ShieldCheck className="h-3.5 w-3.5 text-teal-600" />
+              ) : (
+                <ShieldQuestion className="h-3.5 w-3.5 text-amber-600" />
+              )}
+              <span>{t("tenders.requirements.page", { page: pageText.page_index })}</span>
+              {pageText.printed_label && pageText.printed_label !== String(pageText.page_index) ? (
+                <span>{t("tenders.requirements.printed", { label: pageText.printed_label })}</span>
+              ) : null}
+            </div>
+            <pre className="max-h-[30rem] overflow-auto whitespace-pre-wrap rounded-lg bg-navy-50 p-3 text-xs leading-5 text-navy-800 dark:bg-navy-950 dark:text-navy-100">
+              {pageText.text || t("tenders.documentsPanel.pageNoText")}
+            </pre>
+          </div>
+        ) : null}
+      </Modal>
 
       <Modal
         open={Boolean(evidenceModal)}
@@ -484,7 +556,7 @@ export function TenderRequirementsPanel({ tenderId, refreshKey = 0 }) {
             <p className="text-sm leading-6 muted">{t("tenders.requirements.evidence.help")}</p>
 
             {evidenceData.document_id ? (
-              <div className="rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm dark:border-teal-900 dark:bg-teal-950/40">
+              <div className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm dark:border-teal-900 dark:bg-teal-950/40">
                 <p className="font-semibold text-teal-900 dark:text-teal-100">
                   {t("tenders.requirements.evidence.current")}: {evidenceData.document_title}
                 </p>
@@ -496,10 +568,7 @@ export function TenderRequirementsPanel({ tenderId, refreshKey = 0 }) {
             ) : null}
 
             <div>
-              <label
-                htmlFor="evidence-note"
-                className="text-xs font-semibold text-navy-700 dark:text-navy-200"
-              >
+              <label htmlFor="evidence-note" className="text-xs font-semibold text-navy-700 dark:text-navy-200">
                 {t("tenders.requirements.evidence.noteLabel")}
               </label>
               <textarea
@@ -508,7 +577,7 @@ export function TenderRequirementsPanel({ tenderId, refreshKey = 0 }) {
                 onChange={(event) => setEvidenceNote(event.target.value)}
                 rows={2}
                 maxLength={1000}
-                className="mt-1.5 w-full rounded-xl border border-navy-200 bg-white px-3 py-2 text-sm text-navy-900 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100 dark:border-navy-700 dark:bg-navy-900 dark:text-white dark:focus:ring-teal-900"
+                className="mt-1.5 w-full rounded-lg border border-navy-200 bg-white px-3 py-2 text-sm text-navy-900 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100 dark:border-navy-700 dark:bg-navy-900 dark:text-white dark:focus:ring-teal-900"
                 placeholder={t("tenders.requirements.evidence.notePlaceholder")}
               />
             </div>
@@ -518,7 +587,7 @@ export function TenderRequirementsPanel({ tenderId, refreshKey = 0 }) {
                 {evidenceData.candidates.map((candidate) => (
                   <article
                     key={candidate.document_id}
-                    className="rounded-xl border border-navy-100 p-3 dark:border-navy-800"
+                    className="rounded-lg border border-navy-100 p-3 dark:border-navy-800"
                   >
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
@@ -596,13 +665,6 @@ export function TenderRequirementsPanel({ tenderId, refreshKey = 0 }) {
           </div>
         ) : null}
       </Modal>
-
-      <EvidenceDock
-        open={Boolean(dockRequirement)}
-        requirement={dockRequirement}
-        tenderId={tenderId}
-        onClose={() => setDockRequirement(null)}
-      />
     </Card>
   );
 }

@@ -219,26 +219,6 @@ Verification on 2026-10-22: backend `pytest` 216 passed (15 new tests for the me
 
 Two defects were found and fixed on the way. A point id built from a document id and a chunk index was not a UUID, which Qdrant refuses, so the pages were kept but never indexed. And a paragraph that a PDF wrote as one long line became one oversized passage; it is now split at a sentence end, or at a word boundary where there is none, and every piece is still a verbatim span of its page.
 
-## The evidence-first interface (verified 2026-10-22)
-
-The tender review experience was rebuilt around one question: can a person understand the result, inspect the evidence behind it, see what is still uncertain, and know what to do next?
-
-**The identity.** The palette moved into `frontend/tailwind.config.js` — Deep Ink, Jade, Cobalt, Soft Canvas, Mint, Amber and an accessible red — and `frontend/src/index.css` carries the semantic layer on top of it, so a component never repeats a colour value. The whole application took the new identity at once because the tokens moved, not the components. The navigation is drawn in Deep Ink so the global navigation is distinct from the tender navigation.
-
-**The workspace.** `TenderContextHeader` states the tender's identity and the decision context: the deadline, the source, the last successful source check, the documents, and the one mandatory criterion that still needs a person. A value the record does not carry is left out or labelled unavailable. `WorkbenchTabs` groups the same eleven screens by what the user is doing: understand, evaluate, execute, monitor.
-
-**The Evidence Dock.** `components/tender/EvidenceDock.jsx` opens the real source of a requirement beside the list: the stored page of the stored document, with the cited words highlighted where they actually appear. `lib/excerpt.js` matches the excerpt to the page ignoring whitespace and typography and maps the offsets back to the original text, so the highlight sits on the words the tender printed. The dock says whether the text on screen is the tender's own words or our reading of them, shows the source identity, offers a path to the whole document, and says the source is unavailable when it is. It is one panel, not two, so a screen reader never reads it twice, and below the large breakpoint it is a full-screen sheet.
-
-**The trust workflow.** `lib/trust.js` names the states the system can actually prove — AI-extracted, source-referenced, source-verified, user-confirmed, needs review, unverified, rejected, unavailable — and every requirement carries that state as a badge with an icon and a word, never colour alone. An unchecked requirement is never shown as checked. Each mandatory criterion is inspectable: the status, the reason, and an expandable explanation with the source, the evidence, the factors considered, the limits of the check and the next action. Unknown stays Unknown.
-
-**The Action Inbox.** `GET /api/dashboard/inbox` builds one prioritised list from the company's own records: mandatory criteria that failed or were never decided (grouped per tender, not per criterion), changes nobody has reviewed, deadlines that are close, reminders that are due, sources that were never checked or have gone stale, and evidence about to expire. The order is by consequence and by date. Every item links to the real record. The dashboard leads with it.
-
-**The command palette.** Ctrl/Cmd+K searches the company's own tenders, documents and tasks plus the navigation destinations, with keyboard navigation, focus management, Escape to close and an empty state.
-
-**Original assets.** `assets/logo-mark.svg` and two empty-state illustrations are drawn as engineering linework in Jade and Cobalt. They are decorative and are hidden from assistive technology.
-
-Verification on 2026-10-22: backend `pytest` 221 passed (5 new tests for the inbox), frontend `npm test` 42 passed (13 new tests for the excerpt matcher, the trust model and the dock), `npm run build` succeeded. The three viewports were checked in a real browser: at 1440 x 900 the sidebar is shown and nothing overflows, at 768 x 1024 and 390 x 844 nothing overflows and no element extends past the viewport, and the dock is a full-screen sheet below the large breakpoint. Lighthouse on the dashboard, the evidence library and the tender workspace scores 1.00 for accessibility, 1.00 for best practices and 1.00 for SEO. The contrast and accessible-name defects the first audit found were fixed: the small muted labels were below 4.5:1 in both themes, and the account control's accessible name did not contain its visible text.
-
 ## Later-phase guardrails
 
 - Phase 2 is not complete with mocked TinyFish responses.

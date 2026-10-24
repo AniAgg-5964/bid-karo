@@ -339,17 +339,6 @@ cd backend; .\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
 
 The script uploads a real tender PDF through the ordinary upload endpoint, indexes it, asks three questions in plain language, shows the passages with their page and clause, shows that the company's own certificates are searchable, and checks that the same file uploaded again does not double the index.
 
-## The evidence-first workspace
-
-The tender review is built around traceability rather than around summary cards.
-
-* **The context header** states what the tender is, who issued it, when it is due, when the source was last checked, and the one mandatory criterion that still needs a person. A value the record does not carry is left out.
-* **The workbench** groups the screens by what you are doing: understand (overview, documents, requirements), evaluate (suitability, eligibility, legal, recommend), execute (tasks, checklist, post-award), monitor (changes).
-* **The Evidence Dock** opens the real source of a requirement beside the list and highlights the cited words where they actually appear in the stored page. It says plainly whether the text on screen is the tender's own words or our reading of them, and it says so when the source is not available.
-* **The trust states** are named, not implied: AI-extracted, source-referenced, source-verified, user-confirmed, needs review, unverified. Colour never carries the meaning on its own.
-* **The Action Inbox** on the dashboard is built from your own records and ordered by consequence and by date.
-* **Ctrl/Cmd+K** searches your tenders, documents and tasks.
-
 ## Tests
 
 ```powershell

@@ -1,17 +1,30 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, Download, Eye, FileText, Link2, Plus, Sparkles, Trash2, UploadCloud, Package } from "lucide-react";
+import {
+  AlertTriangle,
+  Download,
+  Eye,
+  FileText,
+  Link2,
+  Package,
+  Plus,
+  Sparkles,
+  Trash2,
+  UploadCloud,
+} from "lucide-react";
 
 import { api } from "../../lib/api";
 import { formatBytes, formatDateTime } from "../../lib/utils";
 import { currentLocale } from "../../i18n";
 import { useToast } from "../../contexts/ToastContext";
-import { Badge, StatusBadge } from "../ui/Badge";
+import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/Card";
+import { Card } from "../ui/Card";
 import { EmptyState } from "../ui/EmptyState";
 import { FieldError, Input, Label, Select } from "../ui/Field";
+import { KebabMenu } from "../ui/Menu";
 import { Modal } from "../ui/Modal";
+import { PillTabs } from "../ui/Tabs";
 import { Skeleton } from "../ui/Spinner";
 
 const KINDS = ["main", "corrigendum", "boq", "form", "other"];
@@ -24,6 +37,7 @@ export function TenderDocumentsPanel({ tenderId, isSample = false, onExtracted }
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [kindFilter, setKindFilter] = useState("");
 
   const [addOpen, setAddOpen] = useState(false);
   const [file, setFile] = useState(null);
@@ -32,6 +46,7 @@ export function TenderDocumentsPanel({ tenderId, isSample = false, onExtracted }
   const [formError, setFormError] = useState("");
   const [uploading, setUploading] = useState(false);
 
+  const [showFetch, setShowFetch] = useState(false);
   const [url, setUrl] = useState("");
   const [urlKind, setUrlKind] = useState("main");
   const [urlBusy, setUrlBusy] = useState(false);
@@ -228,30 +243,61 @@ export function TenderDocumentsPanel({ tenderId, isSample = false, onExtracted }
   const standalone = documents.filter(
     (document) => !document.is_container && !document.parent_document_id,
   );
+
+  const counts = useMemo(() => {
+    const base = { all: standalone.length, main: 0, corrigendum: 0, form: 0, other: 0 };
+    standalone.forEach((document) => {
+      if (Object.prototype.hasOwnProperty.call(base, document.kind)) base[document.kind] += 1;
+      else base.other += 1;
+    });
+    return base;
+  }, [standalone]);
+
+  const filtered = kindFilter ? standalone.filter((document) => document.kind === kindFilter) : standalone;
+  const showPackages = !kindFilter && packages.length;
+  const tabs = [
+    {
+      key: "",
+      label: t("tenders.documentsPanel.allDocuments", { defaultValue: "All documents" }),
+      count: counts.all,
+    },
+    { key: "main", label: t("tenders.documentsPanel.mainTenderTab"), count: counts.main },
+    { key: "corrigendum", label: t("tenders.documentsPanel.addenda"), count: counts.corrigendum },
+    { key: "form", label: t("tenders.documentsPanel.forms"), count: counts.form },
+    { key: "other", label: t("tenders.documentsPanel.otherTab"), count: counts.other },
+  ];
+
   return (
     <Card>
-      <CardHeader
-        action={
+      <div className="flex flex-col gap-3 px-5 pb-4 pt-5 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-[15px] font-semibold text-navy-900 dark:text-white">
+            {t("tenders.documentsPanel.title")}
+          </h2>
+          <p className="mt-1 text-[12.5px] leading-5 muted">{t("tenders.documentsPanel.subtitle")}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => setShowFetch((value) => !value)}>
+            <Link2 className="h-3.5 w-3.5" />
+            {t("tenders.documentsPanel.fetchLink")}
+          </Button>
           <Button size="sm" onClick={() => setAddOpen(true)}>
             <Plus className="h-4 w-4" />
-            {t("tenders.documentsPanel.add")}
+            {t("tenders.documentsPanel.addPdf")}
           </Button>
-        }
-      >
-        <CardTitle>{t("tenders.documentsPanel.title")}</CardTitle>
-        <CardDescription>{t("tenders.documentsPanel.subtitle")}</CardDescription>
-      </CardHeader>
+        </div>
+      </div>
 
-      <CardContent className="space-y-4 pt-2">
+      <div className="space-y-4 px-5 pb-5">
         {isSample ? (
-          <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12px] text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <p>{t("tenders.documentsPanel.sampleNote")}</p>
           </div>
         ) : null}
 
         {error ? (
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
             <span>{error}</span>
             <Button size="sm" variant="outline" onClick={load}>
               {t("common.retry")}
@@ -259,217 +305,213 @@ export function TenderDocumentsPanel({ tenderId, isSample = false, onExtracted }
           </div>
         ) : null}
 
-        <div className="rounded-xl border border-dashed border-navy-200 p-3 dark:border-navy-700">
-          <div className="flex items-center gap-2 text-xs font-semibold text-navy-700 dark:text-navy-200">
-            <Link2 className="h-3.5 w-3.5" />
-            {t("tenders.documentsPanel.urlTitle")}
+        {showFetch ? (
+          <div className="rounded-lg border border-dashed border-navy-200 p-3 dark:border-navy-700">
+            <div className="flex items-center gap-2 text-[12px] font-semibold text-navy-700 dark:text-navy-200">
+              <Link2 className="h-3.5 w-3.5" />
+              {t("tenders.documentsPanel.urlTitle")}
+            </div>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <Input
+                value={url}
+                onChange={(event) => setUrl(event.target.value)}
+                placeholder={t("tenders.documentsPanel.urlPlaceholder")}
+                aria-label={t("tenders.documentsPanel.urlTitle")}
+                className="h-9 flex-1 py-1.5 text-[13px]"
+              />
+              <Select
+                value={urlKind}
+                onChange={(event) => setUrlKind(event.target.value)}
+                aria-label={t("tenders.documentsPanel.kind")}
+                className="h-9 py-1.5 text-[13px] sm:w-44"
+              >
+                {KINDS.map((value) => (
+                  <option key={value} value={value}>
+                    {t(`tenders.documentsPanel.kinds.${value}`)}
+                  </option>
+                ))}
+              </Select>
+              <Button variant="outline" size="sm" onClick={fetchFromUrl} loading={urlBusy} disabled={!url.trim()}>
+                {urlBusy ? t("tenders.documentsPanel.fetching") : t("tenders.documentsPanel.fetch")}
+              </Button>
+            </div>
+            <p className="mt-2 text-[11px] muted">{t("tenders.documentsPanel.urlHelp")}</p>
+            <FieldError>{urlError}</FieldError>
           </div>
-          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-            <Input
-              value={url}
-              onChange={(event) => setUrl(event.target.value)}
-              placeholder={t("tenders.documentsPanel.urlPlaceholder")}
-              aria-label={t("tenders.documentsPanel.urlTitle")}
-              className="flex-1"
-            />
-            <Select
-              value={urlKind}
-              onChange={(event) => setUrlKind(event.target.value)}
-              aria-label={t("tenders.documentsPanel.kind")}
-              className="sm:w-44"
-            >
-              {KINDS.map((value) => (
-                <option key={value} value={value}>
-                  {t(`tenders.documentsPanel.kinds.${value}`)}
-                </option>
-              ))}
-            </Select>
-            <Button variant="outline" onClick={fetchFromUrl} loading={urlBusy} disabled={!url.trim()}>
-              {urlBusy ? t("tenders.documentsPanel.fetching") : t("tenders.documentsPanel.fetch")}
-            </Button>
-          </div>
-          <p className="mt-2 text-[11px] muted">{t("tenders.documentsPanel.urlHelp")}</p>
-          <FieldError>{urlError}</FieldError>
-        </div>
+        ) : null}
+
+        {!loading ? (
+          <PillTabs
+            items={tabs}
+            value={kindFilter}
+            onChange={setKindFilter}
+            ariaLabel={t("tenders.documentsPanel.kind")}
+          />
+        ) : null}
 
         {loading ? (
           <div className="space-y-2">
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-20 w-full" />
           </div>
-        ) : documents.length ? (
-          <div className="space-y-3">
-            {packages.map((pkg) => (
-              <div
-                key={pkg.id}
-                className="rounded-xl border border-navy-200 bg-navy-50/40 p-4 dark:border-navy-700 dark:bg-navy-900/40"
-              >
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300">
-                    <Package className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-navy-900 dark:text-white">
-                      {pkg.title}
-                    </p>
-                    <p className="text-xs muted">
-                      {t("tenders.documentsPanel.packageFiles", {
-                        count: pkg.package_summary?.stored ?? 0,
-                        total: pkg.package_summary?.total ?? 0,
-                      })}
-                    </p>
-                  </div>
-                  <Badge tone="teal">{t("tenders.documentsPanel.kinds.package")}</Badge>
-                </div>
-                {pkg.package_summary?.skipped_files?.length ? (
-                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-                    <p className="font-semibold">
-                      {t("tenders.documentsPanel.packageSkipped", {
-                        count: pkg.package_summary.skipped_files.length,
-                      })}
-                    </p>
-                    <ul className="mt-1 space-y-0.5">
-                      {pkg.package_summary.skipped_files.map((file) => (
-                        <li key={file.path}>
-                          <span className="font-medium">{file.path}</span> - {file.reason}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-                <div className="mt-3 space-y-2">
-                  {(pkg.package_summary?.members || []).map((member) => (
-                    <div
-                      key={member.path}
-                      className="rounded-lg border border-navy-100 bg-white p-3 dark:border-navy-800 dark:bg-navy-900"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-sm font-medium text-navy-900 dark:text-white">
-                          {member.title}
+        ) : showPackages || filtered.length ? (
+          <div className="space-y-2">
+            {showPackages
+              ? packages.map((pkg) => (
+                  <div
+                    key={pkg.id}
+                    className="rounded-lg border border-navy-200 bg-navy-50/40 p-4 dark:border-navy-700 dark:bg-navy-900/40"
+                  >
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-50 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
+                        <Package className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-navy-900 dark:text-white">
+                          {pkg.title}
                         </p>
-                        {member.status ? (
-                          <StatusBadge
-                            status={member.status}
-                            label={statusLabel(member.status)}
-                          />
-                        ) : null}
-                        <Badge tone="neutral">
-                          {t(`tenders.documentsPanel.kinds.${member.kind}`)}
-                        </Badge>
-                        <span className="text-[11px] muted">{member.path}</span>
+                        <p className="text-xs muted">
+                          {t("tenders.documentsPanel.packageFiles", {
+                            count: pkg.package_summary?.stored ?? 0,
+                            total: pkg.package_summary?.total ?? 0,
+                          })}
+                        </p>
                       </div>
-                      <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs muted">
-                        <span>
-                          {t("tenders.documentsPanel.pages", { count: member.page_count || 0 })}
-                        </span>
-                        <span>{formatBytes(member.size_bytes || 0)}</span>
-                      </p>
-                      {member.reason ? (
-                        <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                          {member.reason}
-                        </p>
-                      ) : null}
+                      <Badge tone="teal">{t("tenders.documentsPanel.kinds.package")}</Badge>
                     </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {standalone.map((document) => (
+                    {pkg.package_summary?.skipped_files?.length ? (
+                      <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+                        <p className="font-semibold">
+                          {t("tenders.documentsPanel.packageSkipped", {
+                            count: pkg.package_summary.skipped_files.length,
+                          })}
+                        </p>
+                        <ul className="mt-1 space-y-0.5">
+                          {pkg.package_summary.skipped_files.map((member) => (
+                            <li key={member.path}>
+                              <span className="font-medium">{member.path}</span> - {member.reason}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    <div className="mt-3 space-y-2">
+                      {(pkg.package_summary?.members || []).map((member) => (
+                        <div
+                          key={member.path}
+                          className="rounded-lg border border-navy-100 bg-white p-3 dark:border-navy-800 dark:bg-navy-900"
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate text-sm font-medium text-navy-900 dark:text-white">
+                              {member.title}
+                            </p>
+                            {member.status ? <Badge tone="neutral">{statusLabel(member.status)}</Badge> : null}
+                            <Badge tone="neutral">
+                              {t(`tenders.documentsPanel.kinds.${member.kind}`)}
+                            </Badge>
+                            <span className="text-[11px] muted">{member.path}</span>
+                          </div>
+                          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs muted">
+                            <span>{t("tenders.documentsPanel.pages", { count: member.page_count || 0 })}</span>
+                            <span>{formatBytes(member.size_bytes || 0)}</span>
+                          </p>
+                          {member.reason ? (
+                            <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">{member.reason}</p>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              : null}
+
+            {filtered.map((document) => (
               <div
                 key={document.id}
-                className="rounded-xl border border-navy-100 p-4 dark:border-navy-800"
+                className="flex flex-col gap-3 rounded-lg border border-navy-100 px-4 py-3.5 transition hover:border-navy-200 dark:border-navy-800 sm:flex-row sm:items-center sm:justify-between"
               >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-navy-100 text-navy-600 dark:bg-navy-800 dark:text-navy-300">
-                      <FileText className="h-5 w-5" />
-                    </span>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-sm font-semibold text-navy-900 dark:text-white">
-                          {document.title}
-                        </p>
-                        <StatusBadge status={document.status} label={statusLabel(document.status)} />
-                        <Badge tone="neutral">
-                          {t(`tenders.documentsPanel.kinds.${document.kind}`)}
-                        </Badge>
-                        {document.ocr_page_count > 0 ? (
-                          <Badge tone="amber">
-                            {t("tenders.documentsPanel.ocrPages", {
-                              count: document.ocr_page_count,
-                            })}
-                          </Badge>
-                        ) : null}
-                      </div>
-                      <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs muted">
-                        <span>
-                          {t("tenders.documentsPanel.pages", { count: document.page_count })}
-                        </span>
-                        <span>
-                          {t("tenders.documentsPanel.textPages", {
-                            count: document.text_page_count,
-                          })}
-                        </span>
-                        <span>{formatBytes(document.size_bytes)}</span>
-                        <span>
-                          {document.source === "downloaded"
-                            ? t("tenders.documentsPanel.sourceDownloaded")
-                            : t("tenders.documentsPanel.sourceUploaded")}
-                        </span>
-                        <span>{formatDateTime(document.retrieved_at, currentLocale())}</span>
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600 dark:bg-sky-900/40 dark:text-sky-300">
+                    <FileText className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate text-[13px] font-semibold text-navy-900 dark:text-white">
+                        {document.title}
                       </p>
-                      {document.status === "no_text_layer" ? (
-                        <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                          {t("tenders.documentsPanel.noTextHelp")}
-                        </p>
-                      ) : null}
-                      {document.status === "failed" && document.error ? (
-                        <p className="mt-2 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs text-red-700 dark:bg-red-950/40 dark:text-red-200">
-                          {document.error}
-                        </p>
+                      <span
+                        className={
+                          document.status === "extracted"
+                            ? "inline-flex items-center gap-1 text-[11px] font-medium text-teal-700 dark:text-teal-300"
+                            : "inline-flex items-center gap-1 text-[11px] font-medium text-amber-600"
+                        }
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                        {statusLabel(document.status)}
+                      </span>
+                      {document.ocr_page_count > 0 ? (
+                        <Badge tone="amber">
+                          {t("tenders.documentsPanel.ocrPages", { count: document.ocr_page_count })}
+                        </Badge>
                       ) : null}
                     </div>
+                    <p className="mt-0.5 text-[11px] muted">
+                      {t(`tenders.documentsPanel.kinds.${document.kind}`)} ·{" "}
+                      {t("tenders.documentsPanel.pages", { count: document.page_count })} ·{" "}
+                      {formatBytes(document.size_bytes)} ·{" "}
+                      {formatDateTime(document.retrieved_at, currentLocale())}
+                    </p>
+                    {document.status === "no_text_layer" ? (
+                      <p className="mt-1.5 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                        {t("tenders.documentsPanel.noTextHelp")}
+                      </p>
+                    ) : null}
+                    {document.status === "failed" && document.error ? (
+                      <p className="mt-1.5 rounded bg-red-50 px-2 py-1 text-[11px] text-red-700 dark:bg-red-950/40 dark:text-red-200">
+                        {document.error}
+                      </p>
+                    ) : null}
                   </div>
+                </div>
 
-                  <div className="flex shrink-0 flex-wrap gap-2">
-                    <Button size="sm" variant="outline" onClick={() => openPages(document)}>
-                      <Eye className="h-3.5 w-3.5" />
-                      {t("tenders.documentsPanel.viewPages")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        api.download(
-                          `/tender-documents/${document.id}/download`,
-                          document.original_filename,
-                        )
-                      }
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                      {t("tenders.documentsPanel.download")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => extract(document)}
-                      loading={extractingId === document.id}
-                      disabled={document.status !== "extracted"}
-                    >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      {extractingId === document.id
-                        ? t("tenders.documentsPanel.extracting")
-                        : t("tenders.documentsPanel.extract")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setDeleteTarget(document)}
-                      aria-label={t("tenders.documentsPanel.delete")}
-                      title={t("tenders.documentsPanel.delete")}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+                <div className="flex shrink-0 flex-wrap items-center gap-1 sm:justify-end">
+                  <Button variant="ghost" size="sm" onClick={() => openPages(document)}>
+                    <Eye className="h-3.5 w-3.5" />
+                    {t("tenders.documentsPanel.viewPages")}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      api.download(
+                        `/tender-documents/${document.id}/download`,
+                        document.original_filename,
+                      )
+                    }
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    {t("tenders.documentsPanel.download")}
+                  </Button>
+                  <KebabMenu
+                    label={t("common.actions")}
+                    items={[
+                      {
+                        label:
+                          extractingId === document.id
+                            ? t("tenders.documentsPanel.extracting")
+                            : t("tenders.documentsPanel.extract"),
+                        icon: Sparkles,
+                        onClick: () => extract(document),
+                        disabled: document.status !== "extracted" || extractingId === document.id,
+                      },
+                      {
+                        label: t("tenders.documentsPanel.delete"),
+                        icon: Trash2,
+                        danger: true,
+                        onClick: () => setDeleteTarget(document),
+                      },
+                    ]}
+                  />
                 </div>
               </div>
             ))}
@@ -482,12 +524,12 @@ export function TenderDocumentsPanel({ tenderId, isSample = false, onExtracted }
             action={
               <Button size="sm" onClick={() => setAddOpen(true)}>
                 <Plus className="h-4 w-4" />
-                {t("tenders.documentsPanel.add")}
+                {t("tenders.documentsPanel.addPdf")}
               </Button>
             }
           />
         )}
-      </CardContent>
+      </div>
 
       <Modal
         open={addOpen}
@@ -509,14 +551,12 @@ export function TenderDocumentsPanel({ tenderId, isSample = false, onExtracted }
       >
         <form id="tender-document-form" onSubmit={upload} className="space-y-4">
           {file ? (
-            <div className="flex items-center gap-3 rounded-xl border border-teal-200 bg-teal-50/60 p-3 dark:border-teal-800 dark:bg-teal-950/40">
+            <div className="flex items-center gap-3 rounded-lg border border-teal-200 bg-teal-50/60 p-3 dark:border-teal-800 dark:bg-teal-900/30">
               <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-teal-700 dark:bg-navy-900 dark:text-teal-300">
                 <FileText className="h-5 w-5" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-navy-900 dark:text-white">
-                  {file.name}
-                </p>
+                <p className="truncate text-sm font-semibold text-navy-900 dark:text-white">{file.name}</p>
                 <p className="text-xs muted">{formatBytes(file.size)}</p>
               </div>
               <Button size="sm" variant="ghost" onClick={() => setFile(null)}>
@@ -524,16 +564,14 @@ export function TenderDocumentsPanel({ tenderId, isSample = false, onExtracted }
               </Button>
             </div>
           ) : (
-            <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-navy-200 bg-navy-50/50 px-6 py-8 text-center transition hover:border-teal-400 dark:border-navy-700 dark:bg-navy-800/40">
-              <span className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl bg-white text-teal-700 shadow-sm dark:bg-navy-900 dark:text-teal-300">
+            <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-navy-200 bg-navy-50/50 px-6 py-8 text-center transition hover:border-teal-400 dark:border-navy-700 dark:bg-navy-800/40">
+              <span className="mb-2 flex h-11 w-11 items-center justify-center rounded-lg bg-white text-teal-700 shadow-sm dark:bg-navy-900 dark:text-teal-300">
                 <UploadCloud className="h-5 w-5" />
               </span>
               <span className="text-sm font-medium text-navy-800 dark:text-navy-100">
                 {t("tenders.documentsPanel.drop")}
               </span>
-              <span className="mt-1 text-xs muted">
-                {t("tenders.documentsPanel.supported")}
-              </span>
+              <span className="mt-1 text-xs muted">{t("tenders.documentsPanel.supported")}</span>
               <input
                 type="file"
                 accept="application/pdf,.pdf,.zip,application/zip,image/png,image/jpeg"
@@ -547,9 +585,7 @@ export function TenderDocumentsPanel({ tenderId, isSample = false, onExtracted }
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <Label htmlFor="tender-document-title">
-                {t("tenders.documentsPanel.titleLabel")}
-              </Label>
+              <Label htmlFor="tender-document-title">{t("tenders.documentsPanel.titleLabel")}</Label>
               <Input
                 id="tender-document-title"
                 value={title}
@@ -557,9 +593,7 @@ export function TenderDocumentsPanel({ tenderId, isSample = false, onExtracted }
               />
             </div>
             <div>
-              <Label htmlFor="tender-document-kind">
-                {t("tenders.documentsPanel.kind")}
-              </Label>
+              <Label htmlFor="tender-document-kind">{t("tenders.documentsPanel.kind")}</Label>
               <Select
                 id="tender-document-kind"
                 value={kind}
@@ -592,7 +626,7 @@ export function TenderDocumentsPanel({ tenderId, isSample = false, onExtracted }
           <Skeleton className="h-48 w-full" />
         ) : (
           <div className="grid gap-4 sm:grid-cols-[9rem_1fr]">
-            <div className="flex max-h-64 flex-wrap gap-1.5 overflow-y-auto sm:max-h-[26rem] sm:flex-col">
+            <div className="flex max-h-64 flex-wrap gap-1 overflow-y-auto sm:max-h-[26rem] sm:flex-col">
               {pages.map((page) => (
                 <button
                   key={page.page_index}
@@ -600,8 +634,8 @@ export function TenderDocumentsPanel({ tenderId, isSample = false, onExtracted }
                   onClick={() => openPage(page.page_index)}
                   className={
                     selectedPage?.page_index === page.page_index
-                      ? "rounded-lg bg-teal-50 px-2.5 py-1.5 text-left text-xs font-semibold text-teal-800 dark:bg-teal-950 dark:text-teal-200"
-                      : "rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-navy-600 hover:bg-navy-50 dark:text-navy-300 dark:hover:bg-navy-800"
+                      ? "rounded-md bg-teal-50 px-2.5 py-1.5 text-left text-xs font-semibold text-teal-800 dark:bg-teal-900/40 dark:text-teal-200"
+                      : "rounded-md px-2.5 py-1.5 text-left text-xs font-medium text-navy-600 hover:bg-navy-50 dark:text-navy-300 dark:hover:bg-navy-800"
                   }
                 >
                   {t("tenders.documentsPanel.page", { number: page.page_index })}
@@ -622,29 +656,25 @@ export function TenderDocumentsPanel({ tenderId, isSample = false, onExtracted }
               ) : selectedPage ? (
                 <div>
                   <div className="mb-2 flex flex-wrap items-center gap-2 text-xs muted">
-                    <span>
-                      {t("tenders.documentsPanel.page", { number: selectedPage.page_index })}
-                    </span>
+                    <span>{t("tenders.documentsPanel.page", { number: selectedPage.page_index })}</span>
                     {selectedPage.printed_label &&
                     selectedPage.printed_label !== String(selectedPage.page_index) ? (
                       <span>
-                        {t("tenders.documentsPanel.printedPage", {
-                          label: selectedPage.printed_label,
-                        })}
+                        {t("tenders.documentsPanel.printedPage", { label: selectedPage.printed_label })}
                       </span>
                     ) : null}
                   </div>
                   {selectedPage.text_source === "ocr" ? (
-                    <p className="mb-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                    <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
                       {t("tenders.documentsPanel.ocrPageNote")}
                     </p>
                   ) : null}
                   {selectedPage.has_text ? (
-                    <pre className="max-h-[26rem] overflow-auto whitespace-pre-wrap rounded-xl bg-navy-50 p-3 text-xs leading-5 text-navy-800 dark:bg-navy-950 dark:text-navy-100">
+                    <pre className="max-h-[26rem] overflow-auto whitespace-pre-wrap rounded-lg bg-navy-50 p-3 text-xs leading-5 text-navy-800 dark:bg-navy-950 dark:text-navy-100">
                       {selectedPage.text}
                     </pre>
                   ) : (
-                    <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                    <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                       {t("tenders.documentsPanel.pageNoText")}
                     </p>
                   )}

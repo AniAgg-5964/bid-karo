@@ -26,7 +26,11 @@ from app.repositories.documents import DocumentRepository
 from app.repositories.tender_documents import TenderDocumentRepository
 from app.services.embeddings import EmbeddingProvider
 from app.services.retrieval import SCOPES, RetrievalService
-from app.services.vector_store import QdrantVectorStore, VectorStoreUnavailable
+from app.services.vector_store import (
+    QdrantVectorStore,
+    VectorStoreError,
+    VectorStoreUnavailable,
+)
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
@@ -112,16 +116,9 @@ def collection_state(
         }
     try:
         created = store.ensure_collection(dimension)
-    except VectorStoreUnavailable as exc:
+    except (VectorStoreUnavailable, VectorStoreError) as exc:
         return {
             "status": "unavailable",
-            "collection": store.collection_name,
-            "created": False,
-            "reason": str(exc),
-        }
-    except Exception as exc:  # noqa: BLE001 - reported honestly
-        return {
-            "status": "error",
             "collection": store.collection_name,
             "created": False,
             "reason": str(exc),
@@ -270,7 +267,7 @@ def search_knowledge(
             limit=payload.limit,
             min_score=payload.min_score,
         )
-    except VectorStoreUnavailable as exc:
+    except (VectorStoreUnavailable, VectorStoreError) as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
         ) from exc

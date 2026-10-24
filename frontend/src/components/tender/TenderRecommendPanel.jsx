@@ -220,7 +220,7 @@ export function TenderRecommendPanel({ tenderId }) {
               <p className="mt-2 text-sm leading-6 text-navy-700 dark:text-navy-200">{item.claim}</p>
               {item.action ? (
                 <div className="mt-3 rounded-lg bg-navy-50 p-3 dark:bg-navy-800">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-navy-500 dark:text-navy-300">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-navy-400">
                     {t("tenders.recommend.action")}
                   </p>
                   <p className="mt-1 text-sm leading-6 text-navy-800 dark:text-navy-100">{item.action}</p>

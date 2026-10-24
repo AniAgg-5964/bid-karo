@@ -5,7 +5,7 @@ export function Progress({ value = 0, className, tone = "teal", label }) {
   return (
     <div className={className}>
       <div
-        className="h-2 w-full overflow-hidden rounded-full bg-navy-100 dark:bg-navy-800"
+        className="h-1.5 w-full overflow-hidden rounded-full bg-navy-100 dark:bg-navy-800"
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}

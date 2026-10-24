@@ -44,7 +44,8 @@
     "of": "of",
     "exportCalendar": "Export calendar",
     "capturing": "Capturing…",
-    "rechecking": "Rechecking…"
+    "rechecking": "Rechecking…",
+    "globalSearch": "Search tenders, departments, keywords..."
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -192,7 +193,20 @@
     "bannerCta": "Open discovery",
     "updated": "Updated {{time}}",
     "viewTender": "View tender",
-    "documents": "documents"
+    "documents": "documents",
+    "welcomeBack": "Welcome back, {{name}}",
+    "today": "Here's what's happening with your tenders today.",
+    "myTasks": "My tasks",
+    "dueToday": "Due today",
+    "dueInDays": "Due in {{count}} day",
+    "dueInDays_plural": "Due in {{count}} days",
+    "readyToBid": "Ready to bid",
+    "needsAttention": "Needs attention",
+    "noTasks": "No tasks due right now.",
+    "goodFitLabel": "Good fit",
+    "evidencePending": "Evidence pending",
+    "next7Days": "Next 7 days",
+    "newTenders": "+{{count}} new"
   },
   "documents": {
     "title": "Document library",
@@ -386,7 +400,11 @@
         "snapshotMeta": "{{count}} requirement · {{hash}}",
         "snapshotMeta_plural": "{{count}} requirements · {{hash}}"
       },
-      "recommend": "Recommend"
+      "recommend": "Recommend",
+      "trackTender": "Track tender",
+      "share": "Share",
+      "shareCopied": "Link copied.",
+      "moreActions": "More actions"
     },
     "sampleBadge": "Synthetic sample",
     "documentsPanel": {
@@ -452,7 +470,14 @@
       "deletedToast": "PDF removed.",
       "ocrPages": "OCR: {{count}} page",
       "ocrPages_plural": "OCR: {{count}} pages",
-      "ocrPageNote": "This page was transcribed with English OCR. Compare it with the page image before relying on a citation."
+      "ocrPageNote": "This page was transcribed with English OCR. Compare it with the page image before relying on a citation.",
+      "addPdf": "Add PDF",
+      "fetchLink": "Fetch from URL",
+      "mainTenderTab": "Main tender",
+      "addenda": "Addenda",
+      "forms": "Forms",
+      "otherTab": "Other",
+      "allDocuments": "All documents"
     },
     "requirements": {
       "title": "Extracted requirements",
@@ -541,7 +566,17 @@
           "rejected": "Evidence rejected"
         },
         "expires": "Expires {{date}}"
-      }
+      },
+      "pageShort": "Page {{page}}",
+      "searchPlaceholder": "Search requirements...",
+      "type": "Type",
+      "requirement": "Requirement",
+      "section": "Section",
+      "notFound": "Not found",
+      "allSections": "All sections",
+      "allTypes": "All types",
+      "allStatuses": "All statuses",
+      "viewSource": "View source"
     },
     "assessment": {
       "scoreTitle": "Deterministic suitability score",
@@ -603,12 +638,24 @@
         "during_contract": "During contract",
         "after_completion": "After completion"
       },
-      "explain": "Why this status",
-      "noEvidenceLinked": "No company evidence has been linked to this criterion.",
-      "factorsConsidered": "What was considered",
-      "limits": "The limits of this check",
-      "limitsBody": "A criterion is only cleared when a person has confirmed a valid document against it. Nothing here is cleared automatically.",
-      "nextAction": "Next action"
+      "checklistProgress": "{{done}} of {{total}} completed",
+      "allTasks": "All",
+      "completed": "Completed",
+      "inProgress": "In progress",
+      "notStarted": "Not started",
+      "verified": "Verified",
+      "failed": "Failed",
+      "notFound": "Not found",
+      "scoreComponents": "Score components",
+      "goodFit": "Good fit",
+      "forProfile": "for your business profile",
+      "viewMandatory": "View mandatory criteria",
+      "completedOn": "Completed ? {{date}}",
+      "view": "View",
+      "start": "Start",
+      "continueAction": "Continue",
+      "reviewEvidenceShort": "Review",
+      "unknownShort": "Unknown"
     },
     "recommend": {
       "title": "What to do about this tender",
@@ -667,35 +714,7 @@
       "legalNext": "Next step",
       "legalRead": "Read on"
     },
-    "workbench": {
-      "understand": "Understand",
-      "evaluate": "Evaluate",
-      "execute": "Execute",
-      "monitor": "Monitor"
-    },
-    "context": {
-      "unavailable": "Not available",
-      "source": "Source",
-      "openSource": "Open the source",
-      "noSource": "No source recorded",
-      "lastCheck": "Last source check",
-      "documents": "Documents",
-      "documentCount": "{{count}} uploaded",
-      "noDocuments": "Nothing uploaded yet",
-      "blocking": "Needs a decision",
-      "checking": "Checking the criteria...",
-      "reviewEvidence": "Review the evidence",
-      "nothingBlocking": "No mandatory criterion is waiting on a decision.",
-      "docsLabel": "Saved on this date",
-      "neverCheckedBody": "This source has never been checked. Recheck it before you rely on the details below."
-    },
-    "eligibility": {
-      "gates": {
-        "pass": "Pass",
-        "fail": "Fail",
-        "unknown": "Unknown"
-      }
-    }
+    "countLabel": "{{count}} tenders"
   },
   "checklist": {
     "title": "Compliance checklist",
@@ -916,92 +935,5 @@
     "dismissedLabel": "Dismissed",
     "open": "Open",
     "note": "Reminders are generated from stored deadlines and tasks, not from a background scheduler. Email delivery needs SMTP and the cron-able reminder job."
-  },
-  "trust": {
-    "states": {
-      "ai_extracted": "AI-extracted",
-      "source_referenced": "Source-referenced",
-      "source_verified": "Source-verified",
-      "user_confirmed": "User-confirmed",
-      "needs_review": "Needs review",
-      "unverified": "Unverified",
-      "rejected": "Rejected",
-      "unavailable": "Unavailable",
-      "contradicted": "Contradicted"
-    },
-    "ocrSource": "Read by OCR",
-    "exactSourceText": "Exact source text",
-    "source": {
-      "checked": "Checked",
-      "neverChecked": "Never checked",
-      "notRecorded": "No source recorded",
-      "unknown": "Unknown"
-    }
-  },
-  "dock": {
-    "title": "Evidence",
-    "close": "Close the evidence panel",
-    "noRequirement": "No requirement selected",
-    "citedWording": "The tender's own words",
-    "source": "Source",
-    "document": "Document",
-    "page": "Page",
-    "clause": "Clause",
-    "retrieved": "Read at",
-    "sourceUrl": "Source URL",
-    "pageText": "The source page",
-    "citedNotFound": "The cited words were not found on this page. The page text is shown exactly as it is stored.",
-    "next": "Next",
-    "openDocument": "Open the document",
-    "sourceUnavailable": "The source page is not available",
-    "sourceUnavailableBody": "The document or page this requirement cites is no longer stored. Nothing is shown here rather than a guess."
-  },
-  "palette": {
-    "title": "Search and go to",
-    "placeholder": "Search tenders, documents and tasks...",
-    "close": "Close the search",
-    "destination": "Go to",
-    "empty": "Nothing matched",
-    "emptyBody": "Try a tender title, a document or a task.",
-    "hint": "Up and down to move · Enter to open · Esc to close",
-    "count": "{{count}} results",
-    "kinds": {
-      "nav": "Go to",
-      "tender": "Tender",
-      "document": "Document",
-      "task": "Task"
-    }
-  },
-  "inbox": {
-    "empty": "Nothing needs you right now",
-    "emptyBody": "Unresolved criteria, changes waiting for review and deadlines that are close will appear here.",
-    "more": "Showing the {{shown}} most important of {{total}} items.",
-    "kinds": {
-      "eligibility": "Eligibility",
-      "evidence": "Evidence",
-      "change": "Change",
-      "deadline": "Deadline",
-      "reminder": "Reminder",
-      "source": "Source check"
-    },
-    "title": "Needs you",
-    "subtitle": "Ordered by consequence and by how close the date is."
-  },
-  "thread": {
-    "label": "Evidence trail",
-    "source": "Tender source",
-    "noSource": "No source recorded",
-    "evidence": "Our evidence",
-    "noEvidence": "No evidence linked",
-    "check": "Check",
-    "open": "Open the source"
-  },
-  "assessment": {
-    "explain": "Why this status",
-    "noEvidenceLinked": "No company evidence has been linked to this criterion.",
-    "factorsConsidered": "What was considered",
-    "limits": "The limits of this check",
-    "limitsBody": "A criterion is only cleared when a person has confirmed a valid document against it. Nothing here is cleared automatically.",
-    "nextAction": "Next action"
   }
 }

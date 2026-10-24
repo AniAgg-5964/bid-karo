@@ -26,6 +26,11 @@ logger = logging.getLogger(__name__)
 
 DISTANCE_COSINE = "Cosine"
 
+# The payload keys every search filters by. A hosted Qdrant cluster refuses a
+# filter on a key that has no index, so these indexes are part of the
+# collection rather than an optional extra.
+FILTER_KEYS = ("company_id", "scope", "tender_id", "document_id")
+
 # The namespace for the deterministic point ids.
 POINT_NAMESPACE = uuid.UUID("6f1a1b8e-0b6f-4a3f-9b4a-2f5f6d7c8b90")
 
@@ -158,6 +163,28 @@ class QdrantVectorStore:
             "collections": collections,
         }
 
+    def ensure_payload_indexes(self, keys: Iterable[str] = FILTER_KEYS) -> list[str]:
+        """Make sure the keys we filter by are indexed.
+
+        The local server allows a filter on an unindexed key; a hosted
+        cluster refuses it. Creating the indexes here means the same code
+        works in both places.
+        """
+        from qdrant_client.models import PayloadSchemaType  # type: ignore[import-not-found]
+
+        created: list[str] = []
+        for key in keys:
+            try:
+                self.client.create_payload_index(
+                    collection_name=self.collection_name,
+                    field_name=key,
+                    field_schema=PayloadSchemaType.KEYWORD,
+                )
+                created.append(key)
+            except Exception:  # noqa: BLE001 - an index that exists is not a failure
+                continue
+        return created
+
     def ensure_collection(self, dimension: int, *, distance: str = DISTANCE_COSINE) -> bool:
         """Create the collection if it is missing. True when it is ready."""
         if dimension <= 0:
@@ -175,6 +202,7 @@ class QdrantVectorStore:
                         f"{dimension}. Delete the collection and index again, or "
                         f"use the model it was built with."
                     )
+                self.ensure_payload_indexes()
                 return True
             from qdrant_client.models import Distance, VectorParams  # type: ignore[import-not-found]
 
@@ -187,6 +215,7 @@ class QdrantVectorStore:
                     else Distance.DOT,
                 ),
             )
+            self.ensure_payload_indexes()
             return True
         except VectorStoreUnavailable:
             raise
